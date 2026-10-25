@@ -192,3 +192,20 @@ export const rating = sqliteTable(
 		index("rating_book_idx").on(table.bookId),
 	],
 );
+
+export const message = sqliteTable(
+	"message",
+	{
+		id: text("id")
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		text: text("text").notNull(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(now)
+			.notNull(),
+	},
+	(table) => [index("message_created_idx").on(table.createdAt)],
+);
