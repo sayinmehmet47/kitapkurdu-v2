@@ -291,3 +291,70 @@ test("a book without a file has a clear missing-preview state", async ({
 		page.getByRole("link", { name: "Kitap detayına dön" }),
 	).toHaveAttribute("href", "/books/seed-1984");
 });
+
+test("a swipe turns the page and pages slide unless motion is reduced", async ({
+	page,
+}) => {
+	const id = await upload(page, "epub", readerEpub());
+	const readerFrame = () =>
+		page.frames().find((frame) => frame.url().includes("/reader/frame"));
+	const animated = () =>
+		readerFrame()?.evaluate(
+			() =>
+				(
+					document.querySelector("foliate-view") as unknown as {
+						renderer?: Element;
+					}
+				)?.renderer?.hasAttribute("animated") ?? null,
+		);
+
+	// The suite runs with reduced motion: pages change without sliding.
+	await page.goto(`/read/${id}`);
+	await expect(page.getByText("Kitap açılıyor…")).toHaveCount(0, {
+		timeout: 20_000,
+	});
+	await expect.poll(animated).toBe(false);
+
+	await page.emulateMedia({ reducedMotion: "no-preference" });
+	await page.reload();
+	await expect(page.getByText("Kitap açılıyor…")).toHaveCount(0, {
+		timeout: 20_000,
+	});
+	await expect.poll(animated).toBe(true);
+
+	// Swipe right-to-left across the page with a real touch sequence.
+	const cdp = await page.context().newCDPSession(page);
+	await cdp.send("Emulation.setTouchEmulationEnabled", {
+		enabled: true,
+		maxTouchPoints: 1,
+	});
+	const box = await page.locator("iframe").boundingBox();
+	if (!box) throw new Error("Reader frame is not rendered");
+	const y = box.y + box.height / 2;
+	const swipe = async () => {
+		const from = box.x + box.width * 0.8;
+		const to = box.x + box.width * 0.2;
+		await cdp.send("Input.dispatchTouchEvent", {
+			type: "touchStart",
+			touchPoints: [{ x: from, y }],
+		});
+		for (let step = 1; step <= 8; step++) {
+			await cdp.send("Input.dispatchTouchEvent", {
+				type: "touchMove",
+				touchPoints: [{ x: from + ((to - from) * step) / 8, y }],
+			});
+		}
+		await cdp.send("Input.dispatchTouchEvent", {
+			type: "touchEnd",
+			touchPoints: [],
+		});
+	};
+	const before = await page.getByLabel("Kitapta ilerle").inputValue();
+	await swipe();
+	await expect
+		.poll(() => page.getByLabel("Kitapta ilerle").inputValue())
+		.not.toBe(before);
+	await expect
+		.poll(() => bookText(page))
+		.toContain("Okumak, sabırla açılan bir kapı gibidir");
+});
