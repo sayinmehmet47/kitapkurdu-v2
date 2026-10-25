@@ -12,6 +12,7 @@ import { Label } from "#/components/ui/label";
 import { Textarea } from "#/components/ui/textarea";
 import { createDb } from "#/db";
 import { getAuth } from "#/lib/auth";
+import { storedBookFormat } from "#/lib/book-file-format";
 import {
 	bookUpdateInput,
 	deleteBookById,
@@ -424,6 +425,7 @@ function BookDetailPage() {
 	const average = Number(summary?.average ?? 0);
 	const count = summary?.count ?? 0;
 	const details = [
+		["Biçim", storedBookFormat(item.fileUrl)?.toUpperCase()],
 		["Yayınevi", item.publisher],
 		["ISBN", item.isbn],
 		["Dil", language],
@@ -467,13 +469,21 @@ function BookDetailPage() {
 
 					<div className="mt-8">
 						{item.fileUrl ? (
-							<Link
-								to="/api/books/$id/download"
-								params={{ id: item.id }}
-								className={buttonVariants({ size: "lg" })}
-							>
-								Kitabı aç
-							</Link>
+							<div className="flex flex-wrap gap-3">
+								<Link
+									to="/read/$id"
+									params={{ id: item.id }}
+									className={buttonVariants({ size: "lg" })}
+								>
+									Kitabı aç
+								</Link>
+								<a
+									href={`/api/books/${encodeURIComponent(item.id)}/download?download=1`}
+									className={buttonVariants({ variant: "outline", size: "lg" })}
+								>
+									İndir
+								</a>
+							</div>
 						) : (
 							<p className="text-sm text-muted-foreground">
 								Bu kitap için dosya henüz eklenmemiş.

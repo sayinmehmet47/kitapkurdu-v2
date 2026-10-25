@@ -39,7 +39,7 @@ test("anonymous user is prompted to sign in to upload", async ({ page }) => {
 test("an upload over the storage ceiling is refused with a message", async ({
 	page,
 }, info) => {
-	// The E2E config sets UPLOAD_MAX_TOTAL_BYTES to 4096, so this 8 KB PDF is
+	// The E2E config sets UPLOAD_MAX_TOTAL_BYTES to 65536, so this 128 KB PDF is
 	// refused before it reaches R2 and no book is created.
 	await signUp(page);
 	await page.goto("/books/new");
@@ -49,7 +49,7 @@ test("an upload over the storage ceiling is refused with a message", async ({
 		mimeType: "application/pdf",
 		buffer: Buffer.concat([
 			Buffer.from("%PDF-1.4\n"),
-			Buffer.alloc(8 * 1024, "a"),
+			Buffer.alloc(128 * 1024, "a"),
 		]),
 	});
 	await page.getByRole("button", { name: "Yükle" }).click();

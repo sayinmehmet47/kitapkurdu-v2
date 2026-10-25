@@ -12,6 +12,11 @@ import { Textarea } from "#/components/ui/textarea";
 import { createDb } from "#/db";
 import { getAuth } from "#/lib/auth";
 import {
+	BOOK_FILE_ACCEPT,
+	BookFileError,
+	MAX_BOOK_FILE_BYTES,
+} from "#/lib/book-file-format";
+import {
 	type LookupConfig,
 	lookupBookMetadata,
 	type MetadataQuery,
@@ -87,7 +92,7 @@ const submitUpload = createServerFn({ method: "POST" })
 			return { ok: true as const, id: row.id };
 		} catch (error) {
 			// Limit rejections are meant for the uploader; anything else stays generic.
-			if (error instanceof UploadLimitError) {
+			if (error instanceof UploadLimitError || error instanceof BookFileError) {
 				return { ok: false as const, error: error.message };
 			}
 			throw error;
@@ -201,7 +206,11 @@ function UploadPage() {
 	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		if (!file) {
-			setError("Bir PDF dosyası seçin.");
+			setError("Bir PDF veya EPUB dosyası seçin.");
+			return;
+		}
+		if (file.size > MAX_BOOK_FILE_BYTES) {
+			setError("Dosya çok büyük (en fazla 25 MB).");
 			return;
 		}
 		setSubmitting(true);
@@ -358,11 +367,11 @@ function UploadPage() {
 					</div>
 
 					<div className="space-y-1.5">
-						<Label htmlFor="file">PDF dosyası (en fazla 25 MB)</Label>
+						<Label htmlFor="file">PDF veya EPUB dosyası (en fazla 25 MB)</Label>
 						<Input
 							id="file"
 							type="file"
-							accept="application/pdf"
+							accept={BOOK_FILE_ACCEPT}
 							onChange={(e) => setFile(e.target.files?.[0] ?? null)}
 						/>
 					</div>

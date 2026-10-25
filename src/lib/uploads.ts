@@ -2,6 +2,8 @@ import { and, count, eq, gt, isNotNull, sum } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "#/db";
 import { book } from "#/db/schema";
+import { bookFileMime, MAX_BOOK_FILE_BYTES } from "#/lib/book-file-format";
+import { detectBookFormat } from "#/lib/book-files";
 import {
 	type BookMetadata,
 	type MetadataQuery,
@@ -25,7 +27,7 @@ export const uploadInput = z.object({
 });
 
 // Keep uploads comfortably under the Workers request-body limit (base64 adds ~33%).
-export const MAX_FILE_BYTES = 25 * 1024 * 1024;
+export const MAX_FILE_BYTES = MAX_BOOK_FILE_BYTES;
 
 // Spending guardrails. R2 has no hard billing cap, so the app stops accepting
 // uploads before storage leaves the 10 GB free tier, and limits each account.
@@ -94,8 +96,6 @@ async function assertWithinLimits(
 	}
 }
 
-const PDF_HEADER = "%PDF-";
-
 function decodeBase64(value: string) {
 	const base64 = value.includes(",")
 		? value.slice(value.indexOf(",") + 1)
@@ -104,14 +104,6 @@ function decodeBase64(value: string) {
 	const bytes = new Uint8Array(binary.length);
 	for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
 	return bytes;
-}
-
-function isPdf(bytes: Uint8Array) {
-	if (bytes.byteLength < PDF_HEADER.length) return false;
-	for (let i = 0; i < PDF_HEADER.length; i++) {
-		if (bytes[i] !== PDF_HEADER.charCodeAt(i)) return false;
-	}
-	return true;
 }
 
 export async function createBookWithFile(
@@ -124,13 +116,7 @@ export async function createBookWithFile(
 ) {
 	const data = uploadInput.parse(input);
 	const bytes = decodeBase64(data.fileBase64);
-	if (bytes.byteLength === 0) throw new Error("Dosya boş.");
-	if (bytes.byteLength > MAX_FILE_BYTES) {
-		throw new Error("Dosya çok büyük (en fazla 25 MB).");
-	}
-	if (!isPdf(bytes)) {
-		throw new Error("Yalnızca PDF dosyaları yüklenebilir.");
-	}
+	const format = detectBookFormat(bytes);
 	await assertWithinLimits(db, userId, bytes.byteLength, limits);
 
 	const category = (data.category ?? "")
@@ -153,11 +139,9 @@ export async function createBookWithFile(
 			? await lookup({ isbn: data.isbn, name: data.name, author: data.author })
 			: null;
 
-	// Only PDFs are stored, so force a safe content type and extension: the
-	// download route serves these inline on the application origin.
-	const key = `${userId}/${crypto.randomUUID()}.pdf`;
+	const key = `${userId}/${crypto.randomUUID()}.${format}`;
 	await bucket.put(key, bytes, {
-		httpMetadata: { contentType: "application/pdf" },
+		httpMetadata: { contentType: bookFileMime(format) },
 	});
 
 	return db

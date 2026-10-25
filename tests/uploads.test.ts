@@ -13,6 +13,7 @@ import {
 	uploadInput,
 	uploadLimitsFor,
 } from "../src/lib/uploads";
+import { sampleEpub } from "./fixtures/book-files";
 
 test("book uploads store the file in R2 and the metadata in D1", {
 	timeout: 60_000,
@@ -319,5 +320,46 @@ test("book uploads store the file in R2 and the metadata in D1", {
 		complete.coverThumbnail,
 		"https://books.google.com/books/content?id=z",
 		"A Google cover from the preview is normalised and kept",
+	);
+
+	await t.test(
+		"EPUB stores its detected MIME and keeps all upload limits",
+		async () => {
+			const bytes = sampleEpub();
+			const input = {
+				name: "Örnek EPUB",
+				fileName: "ornek.epub",
+				fileBase64: Buffer.from(bytes).toString("base64"),
+			};
+			const uploaded = await createBookWithFile(
+				db,
+				bucket,
+				reader.id,
+				input,
+				roomy,
+			);
+			assert.ok(uploaded.fileUrl?.endsWith(".epub"));
+			assert.equal(uploaded.size, bytes.byteLength);
+			const object = await bucket.get(uploaded.fileUrl ?? "");
+			assert.ok(object);
+			assert.equal(object.httpMetadata?.contentType, "application/epub+zip");
+			assert.deepEqual(new Uint8Array(await object.arrayBuffer()), bytes);
+			const before = await objectCount();
+			await assert.rejects(
+				createBookWithFile(db, bucket, reader.id, input, {
+					...roomy,
+					maxTotalBytes: 1,
+				}),
+				UploadLimitError,
+			);
+			await assert.rejects(
+				createBookWithFile(db, bucket, reader.id, input, {
+					...roomy,
+					maxUploadsPerDay: 1,
+				}),
+				UploadLimitError,
+			);
+			assert.equal(await objectCount(), before);
+		},
 	);
 });
