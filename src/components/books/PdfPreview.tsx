@@ -6,7 +6,7 @@ import type {
 import { useEffect, useRef, useState } from "react";
 import { Button } from "#/components/ui/button";
 
-export default function PdfPreview({ bytes }: { bytes: Uint8Array }) {
+export default function PdfPreview({ url }: { url: string }) {
 	const canvas = useRef<HTMLCanvasElement>(null);
 	const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
 	const [pageNumber, setPageNumber] = useState(1);
@@ -25,8 +25,13 @@ export default function PdfPreview({ bytes }: { bytes: Uint8Array }) {
 				]);
 				if (!active) return;
 				lib.GlobalWorkerOptions.workerSrc = worker.default;
+				// Read only the byte ranges needed to display a page. Buffering a whole
+				// large PDF first can hang or exhaust memory on mobile browsers.
 				task = lib.getDocument({
-					data: bytes.slice(),
+					url,
+					rangeChunkSize: 256 * 1024,
+					disableStream: true,
+					disableAutoFetch: true,
 					enableXfa: false,
 					useWasm: false,
 					useSystemFonts: true,
@@ -49,7 +54,7 @@ export default function PdfPreview({ bytes }: { bytes: Uint8Array }) {
 			active = false;
 			void task?.destroy();
 		};
-	}, [bytes]);
+	}, [url]);
 
 	useEffect(() => {
 		if (!pdf) return;
