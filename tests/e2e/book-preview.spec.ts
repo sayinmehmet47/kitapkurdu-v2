@@ -2,11 +2,11 @@ import { randomUUID } from "node:crypto";
 import type { Page } from "@playwright/test";
 import { strToU8, zipSync } from "fflate";
 import { readerEpub, sampleEpub, samplePdf } from "../fixtures/book-files";
-import { capture, expect, signUp, test } from "./fixtures";
+import { capture, expect, openUploadForm, signUp, test } from "./fixtures";
 
 async function upload(page: Page, format: "pdf" | "epub", bytes: Uint8Array) {
 	await signUp(page);
-	await page.goto("/books/new");
+	await openUploadForm(page);
 	const name = `${format.toUpperCase()} Önizleme ${randomUUID().slice(0, 8)}`;
 	await page.getByLabel("Ad", { exact: true }).fill(name);
 	await page.locator('input[type="file"]').setInputFiles({
@@ -257,7 +257,7 @@ test("renaming an ordinary ZIP to EPUB is rejected without a browser error", asy
 	page,
 }) => {
 	await signUp(page);
-	await page.goto("/books/new");
+	await openUploadForm(page);
 	await page.getByLabel("Ad", { exact: true }).fill("Sahte EPUB");
 	await page.locator('input[type="file"]').setInputFiles({
 		name: "sahte.epub",

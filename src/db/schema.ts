@@ -194,6 +194,25 @@ export const rating = sqliteTable(
 	],
 );
 
+// Only deletion receipts, not a second copy of the catalog. Keeping the original
+// upload time prevents delete/re-upload from resetting the rolling daily limit.
+export const deletedBookUpload = sqliteTable(
+	"deleted_book_upload",
+	{
+		bookId: text("book_id").primaryKey(),
+		uploaderId: text("uploader_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		uploadedAt: integer("uploaded_at", { mode: "timestamp_ms" }).notNull(),
+	},
+	(table) => [
+		index("deleted_book_upload_uploader_time_idx").on(
+			table.uploaderId,
+			table.uploadedAt,
+		),
+	],
+);
+
 export const message = sqliteTable(
 	"message",
 	{

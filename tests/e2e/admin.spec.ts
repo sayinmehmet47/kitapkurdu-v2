@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Page } from "@playwright/test";
-import { capture, expect, signUp, test } from "./fixtures";
+import { capture, expect, openUploadForm, signUp, test } from "./fixtures";
 
 test("regular users do not see admin controls", async ({ page }) => {
 	await signUp(page);
@@ -13,7 +13,7 @@ test("regular users do not see admin controls", async ({ page }) => {
 });
 
 async function uploadAdminBook(page: Page, name: string) {
-	await page.goto("/books/new");
+	await openUploadForm(page);
 	await page.getByLabel("Ad", { exact: true }).fill(name);
 	await page.locator('input[type="file"]').setInputFiles({
 		name: "admin-test.pdf",
@@ -87,9 +87,16 @@ test("admin can edit, hide a duplicate, and delete uploaded books", async ({
 
 	await uploadAdminBook(page, `${name} Silinecek`);
 	const deletedUrl = page.url();
+	const deletedId = deletedUrl.split("/").at(-1) ?? "";
+	expect(
+		(await page.request.get(`/api/books/${deletedId}/download`)).status(),
+	).toBe(200);
 	page.once("dialog", (dialog) => dialog.accept());
 	await page.getByRole("button", { name: "Kitabı sil", exact: true }).click();
 	await expect(page).toHaveURL(/\/books\/?$/);
+	expect(
+		(await page.request.get(`/api/books/${deletedId}/download`)).status(),
+	).toBe(404);
 	await page.goto(deletedUrl);
 	await expect(
 		page.getByRole("heading", { name: "Kitap bulunamadı" }),

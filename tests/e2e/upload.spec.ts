@@ -1,6 +1,6 @@
 import { Buffer } from "node:buffer";
 import { metadataEpub, samplePdf } from "../fixtures/book-files";
-import { capture, expect, signUp, test } from "./fixtures";
+import { capture, expect, openUploadForm, signUp, test } from "./fixtures";
 
 test("signed-in user can upload a book PDF and open its detail page", async ({
 	page,
@@ -43,7 +43,7 @@ test("an upload over the storage ceiling is refused with a message", async ({
 	// The E2E config sets UPLOAD_MAX_TOTAL_BYTES to 65536, so this 128 KB PDF is
 	// refused before it reaches R2 and no book is created.
 	await signUp(page);
-	await page.goto("/books/new");
+	await openUploadForm(page);
 	await page.getByLabel("Ad", { exact: true }).fill("Çok Büyük Kitap");
 	await page.locator('input[type="file"]').setInputFiles({
 		name: "buyuk.pdf",
@@ -71,7 +71,7 @@ test("Google Books lookup fills empty fields and the cover before upload", async
 }, info) => {
 	// The E2E server answers Google Books queries from a local stub.
 	await signUp(page);
-	await page.goto("/books/new");
+	await openUploadForm(page);
 	await page.getByLabel("Yazar", { exact: true }).fill("Elle Yazılan Yazar");
 	await page.getByLabel("ISBN", { exact: true }).fill("9789750719387");
 	await page.getByRole("button", { name: "Bilgileri getir" }).click();
@@ -117,7 +117,7 @@ test("a suggested cover can be removed and stays removed on save", async ({
 	page,
 }) => {
 	await signUp(page);
-	await page.goto("/books/new");
+	await openUploadForm(page);
 	await page.getByLabel("ISBN", { exact: true }).fill("9789750719387");
 	await page.getByRole("button", { name: "Bilgileri getir" }).click();
 	await expect(page.locator('[data-slot="book-cover"] img')).toHaveCount(1);
@@ -145,7 +145,7 @@ test("an upload still works when Google Books has no match", async ({
 	page,
 }) => {
 	await signUp(page);
-	await page.goto("/books/new");
+	await openUploadForm(page);
 	await page.getByLabel("Ad", { exact: true }).fill("Hiç Bilinmeyen Kitap");
 	await page.getByRole("button", { name: "Bilgileri getir" }).click();
 	await expect(page.getByRole("status")).toHaveText(
@@ -165,7 +165,7 @@ test("an upload still works when Google Books has no match", async ({
 
 test("the form says when no book source is available", async ({ page }) => {
 	await signUp(page);
-	await page.goto("/books/new");
+	await openUploadForm(page);
 	await page.getByLabel("Ad", { exact: true }).fill("Kota Doldu");
 	await page.getByRole("button", { name: "Bilgileri getir" }).click();
 	await expect(page.getByRole("status")).toHaveText(
@@ -182,7 +182,7 @@ for (const manual of [false, true]) {
 			? "Benim yazdığım kitap açıklaması."
 			: "Open Library üzerinden gelen örnek kitap açıklaması.";
 		await signUp(page);
-		await page.goto("/books/new");
+		await openUploadForm(page);
 		await page.getByLabel("Ad", { exact: true }).fill("Yedekten Gelen Kitap");
 		if (manual)
 			await page.getByLabel("Açıklama", { exact: true }).fill(description);
@@ -216,7 +216,7 @@ test("upload still succeeds when Open Library work details are unavailable", asy
 	page,
 }) => {
 	await signUp(page);
-	await page.goto("/books/new");
+	await openUploadForm(page);
 	await page
 		.getByLabel("Ad", { exact: true })
 		.fill("Açıklaması Alınamayan Kitap");
@@ -243,7 +243,7 @@ test("choosing an EPUB fills its details and cover from the file itself", async 
 	page,
 }, info) => {
 	await signUp(page);
-	await page.goto("/books/new");
+	await openUploadForm(page);
 	await page.locator('input[type="file"]').setInputFiles({
 		name: "madonna.epub",
 		mimeType: "application/epub+zip",
@@ -295,7 +295,7 @@ test("choosing a file looks up the remaining details online by itself", async ({
 	page,
 }) => {
 	await signUp(page);
-	await page.goto("/books/new");
+	await openUploadForm(page);
 	await page.locator('input[type="file"]').setInputFiles({
 		name: "Kürk Mantolu Madonna -- Sabahattin Ali Ali Sabahattin -- ( WeLib.org ).pdf",
 		mimeType: "application/pdf",
