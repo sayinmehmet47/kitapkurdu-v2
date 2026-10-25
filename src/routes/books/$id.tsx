@@ -227,14 +227,13 @@ function BookDetailPage() {
 
 					<div className="mt-8">
 						{item.fileUrl ? (
-							<a
-								href={item.fileUrl}
-								target="_blank"
-								rel="noreferrer"
+							<Link
+								to="/api/books/$id/download"
+								params={{ id: item.id }}
 								className={buttonVariants({ size: "lg" })}
 							>
 								Kitabı aç
-							</a>
+							</Link>
 						) : (
 							<p className="text-sm text-muted-foreground">
 								Bu kitap için dosya henüz eklenmemiş.
