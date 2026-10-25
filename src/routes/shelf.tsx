@@ -3,8 +3,12 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { useState } from "react";
+import { Button } from "#/components/ui/button";
+import { Label } from "#/components/ui/label";
+import { Textarea } from "#/components/ui/textarea";
 import { createDb } from "#/db";
 import { getAuth } from "#/lib/auth";
+import { formatDate } from "#/lib/dates";
 import { listMessages, messageInput, postMessage } from "#/lib/messages";
 
 const getShelf = createServerFn({ method: "GET" }).handler(async () => {
@@ -52,58 +56,75 @@ function ShelfPage() {
 	};
 
 	return (
-		<main className="demo-page">
-			<section className="mx-auto w-full max-w-2xl px-4 py-10">
-				<p className="island-kicker mb-2">Topluluk</p>
-				<h1 className="demo-title">Raf Alanı</h1>
-				<p className="demo-muted mt-2">Okurların kısa notları ve mesajları.</p>
+		<main className="page-wrap pt-10 sm:pt-14">
+			<div className="max-w-2xl">
+				<h1 className="text-4xl leading-none font-semibold sm:text-5xl">
+					Raf Alanı
+				</h1>
+				<p className="mt-4 font-serif text-xl text-muted-foreground">
+					Okurların birbirine bıraktığı kısa notlar: bir öneri, bir alıntı, bir
+					soru.
+				</p>
 
-				<div className="demo-card mt-6 p-4">
+				<div className="mt-10 border-t border-border pt-8">
 					{isSignedIn ? (
-						<form onSubmit={handleSubmit} className="space-y-3">
-							<label htmlFor="message" className="block text-sm font-semibold">
-								Bir mesaj bırak
-							</label>
-							<textarea
+						<form onSubmit={handleSubmit} className="grid gap-3">
+							<Label htmlFor="message">Bir mesaj bırak</Label>
+							<Textarea
 								id="message"
 								value={text}
 								onChange={(event) => setText(event.target.value)}
 								rows={3}
 								maxLength={500}
-								className="demo-input w-full"
+								className="bg-card"
 							/>
 							{error ? (
-								<p className="text-sm text-destructive">{error}</p>
+								<p role="alert" className="text-sm text-destructive">
+									{error}
+								</p>
 							) : null}
-							<button type="submit" className="demo-button">
-								Gönder
-							</button>
+							<div className="flex items-center justify-between gap-4">
+								<span className="text-xs text-muted-foreground">
+									{text.length} / 500
+								</span>
+								<Button type="submit" disabled={!text.trim()}>
+									Gönder
+								</Button>
+							</div>
 						</form>
 					) : (
-						<p className="demo-muted text-sm">
+						<p className="text-muted-foreground">
 							Mesaj bırakmak için{" "}
-							<Link to="/demo/better-auth" className="underline">
-								giriş yapın
-							</Link>
-							.
+							<Link to="/demo/better-auth">giriş yapın</Link>.
 						</p>
 					)}
 				</div>
 
-				<ul className="mt-8 space-y-3">
-					{messages.map((entry) => (
-						<li key={entry.id} className="demo-card p-4">
-							<p className="text-sm font-semibold">{entry.username}</p>
-							<p className="demo-muted mt-1">{entry.text}</p>
-						</li>
-					))}
-					{messages.length === 0 ? (
-						<li className="demo-card p-4 text-center demo-muted">
-							Henüz mesaj yok.
-						</li>
-					) : null}
-				</ul>
-			</section>
+				{messages.length > 0 ? (
+					<ul className="mt-10 divide-y divide-border border-y border-border">
+						{messages.map((entry) => (
+							<li key={entry.id} className="py-6">
+								<p className="font-serif text-xl leading-relaxed whitespace-pre-line">
+									{entry.text}
+								</p>
+								<p className="mt-2 text-sm text-muted-foreground">
+									<span className="font-medium text-foreground">
+										{entry.username}
+									</span>
+									{" · "}
+									<time dateTime={new Date(entry.createdAt).toISOString()}>
+										{formatDate(entry.createdAt)}
+									</time>
+								</p>
+							</li>
+						))}
+					</ul>
+				) : (
+					<p className="mt-10 font-serif text-lg text-muted-foreground italic">
+						Henüz mesaj yok. İlk notu sen bırak.
+					</p>
+				)}
+			</div>
 		</main>
 	);
 }

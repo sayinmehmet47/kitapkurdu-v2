@@ -8,9 +8,9 @@ const navLink =
 
 export default function Header() {
 	const navigate = useNavigate();
-	// The catalog page has its own search field; avoid two on the same page.
-	const onCatalog = useRouterState({
-		select: (state) => /^\/books\/?$/.test(state.location.pathname),
+	// Home and the catalog have their own search field; avoid two on one page.
+	const hasPageSearch = useRouterState({
+		select: (state) => /^\/(books\/?)?$/.test(state.location.pathname),
 	});
 
 	return (
@@ -30,10 +30,13 @@ export default function Header() {
 					<Link to="/books" className={navLink}>
 						Kitaplar
 					</Link>
+					<Link to="/shelf" className={navLink}>
+						Raf Alanı
+					</Link>
 				</nav>
 
 				<div className="ml-auto flex items-center gap-2">
-					{onCatalog ? null : (
+					{hasPageSearch ? null : (
 						<>
 							<search className="hidden md:block">
 								<form

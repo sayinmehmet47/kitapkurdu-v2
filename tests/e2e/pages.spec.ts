@@ -1,15 +1,20 @@
 import { capture, expect, test } from "./fixtures";
 
-test("home page renders, navigates, and fits the viewport", async ({
+test("home page offers search, recent books, and fits the viewport", async ({
 	page,
 }, info) => {
 	await page.goto("/");
 	await expect(
-		page.getByRole("heading", { name: "Start simple, ship quickly." }),
+		page.getByRole("heading", { level: 1, name: "Bugün ne okusak?" }),
 	).toBeVisible();
+	const recent = page.getByRole("region", { name: "Son eklenenler" });
+	await expect(recent.getByRole("heading", { name: "Sefiller" })).toBeVisible();
+	await expect(recent.getByRole("heading", { name: "1984" })).toBeVisible();
 	await expect(
-		page.getByRole("link", { name: "About This Starter" }),
+		page.getByRole("region", { name: "Raftan notlar" }),
 	).toBeVisible();
+	// Home has its own search, so the header does not repeat it.
+	await expect(page.getByRole("banner").getByRole("searchbox")).toHaveCount(0);
 	await expect
 		.poll(() =>
 			page.evaluate(
@@ -18,10 +23,22 @@ test("home page renders, navigates, and fits the viewport", async ({
 		)
 		.toBe(true);
 	await capture(page, info, "home");
-	await page.getByRole("link", { name: "About This Starter" }).click();
+
+	const search = page.getByRole("searchbox", { name: "Kitaplıkta ara" });
+	await search.fill("Sefiller");
+	await search.press("Enter");
+	await expect(page).toHaveURL(/\/books\?.*q=Sefiller/);
+	await expect(page.getByRole("heading", { name: "Sefiller" })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "1984" })).toHaveCount(0);
+
+	await page
+		.getByRole("contentinfo")
+		.getByRole("link", { name: "Hakkında" })
+		.click();
 	await expect(
-		page.getByRole("heading", { name: "A small starter with room to grow." }),
+		page.getByRole("heading", { level: 1, name: "KitapKurdu hakkında" }),
 	).toBeVisible();
+	await capture(page, info, "about");
 });
 
 test("site shell is branded, Turkish, themeable, and searchable", async ({
@@ -38,6 +55,11 @@ test("site shell is branded, Turkish, themeable, and searchable", async ({
 			.getByRole("navigation", { name: "Ana menü" })
 			.getByRole("link", { name: "Kitaplar" }),
 	).toBeVisible();
+	await expect(
+		page
+			.getByRole("navigation", { name: "Ana menü" })
+			.getByRole("link", { name: "Raf Alanı" }),
+	).toBeVisible();
 
 	// Theme cycles system -> light -> dark -> system.
 	const toggle = header.getByRole("button", { name: /^Tema:/ });
@@ -49,6 +71,8 @@ test("site shell is branded, Turkish, themeable, and searchable", async ({
 	await toggle.click();
 	await expect(page.locator("html")).toHaveClass(/(^|\s)light(\s|$)/);
 
+	// Search from a page without its own search field.
+	await page.goto("/about");
 	if (isMobile) {
 		await header.getByRole("link", { name: "Kitaplarda ara" }).click();
 		await expect(page.getByRole("heading", { name: "Kitaplar" })).toBeVisible();
