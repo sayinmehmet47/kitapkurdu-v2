@@ -3,12 +3,19 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { useState } from "react";
+import { z } from "zod";
+import { BookCover } from "#/components/books/BookCover";
 import { Button } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { Textarea } from "#/components/ui/textarea";
 import { createDb } from "#/db";
 import { getAuth } from "#/lib/auth";
+import {
+	type LookupConfig,
+	lookupBookMetadata,
+	type MetadataQuery,
+} from "#/lib/book-metadata";
 import {
 	createBookWithFile,
 	UploadLimitError,
@@ -22,6 +29,34 @@ const getUploadContext = createServerFn({ method: "GET" }).handler(async () => {
 	});
 	return { isSignedIn: Boolean(session) };
 });
+
+// Optional: GOOGLE_BOOKS_API_KEY (Worker secret) raises the shared API quota;
+// GOOGLE_BOOKS_API_URL points E2E tests at a local stub instead of Google.
+function metadataConfig(): LookupConfig {
+	const vars = env as unknown as Partial<
+		Record<"GOOGLE_BOOKS_API_KEY" | "GOOGLE_BOOKS_API_URL", string>
+	>;
+	return {
+		apiKey: vars.GOOGLE_BOOKS_API_KEY || undefined,
+		apiUrl: vars.GOOGLE_BOOKS_API_URL || undefined,
+	};
+}
+
+const lookupMetadata = createServerFn({ method: "POST" })
+	.validator(
+		z.object({
+			isbn: z.string().trim().max(32).optional(),
+			name: z.string().trim().max(200).optional(),
+		}),
+	)
+	.handler(async ({ data }) => {
+		// Signed-in only, so anonymous traffic cannot spend the shared quota.
+		const session = await getAuth().api.getSession({
+			headers: getRequestHeaders(),
+		});
+		if (!session) throw new Error("Sign in before looking up books.");
+		return lookupBookMetadata(data, metadataConfig());
+	});
 
 const submitUpload = createServerFn({ method: "POST" })
 	.validator(uploadInput)
@@ -37,6 +72,10 @@ const submitUpload = createServerFn({ method: "POST" })
 				session.user.id,
 				data,
 				uploadLimitsFor(env.UPLOAD_MAX_TOTAL_BYTES),
+				async (query: MetadataQuery) => {
+					const result = await lookupBookMetadata(query, metadataConfig());
+					return result.status === "found" ? result.metadata : null;
+				},
 			);
 			return { ok: true as const, id: row.id };
 		} catch (error) {
@@ -73,6 +112,11 @@ function UploadPage() {
 	const [category, setCategory] = useState("");
 	const [language, setLanguage] = useState<"turkish" | "english">("turkish");
 	const [file, setFile] = useState<File | null>(null);
+	const [cover, setCover] = useState<string | null>(null);
+	const [looking, setLooking] = useState(false);
+	const [lookupStatus, setLookupStatus] = useState(
+		"ISBN ya da adı yazıp bilgileri Google Books'tan getirebilirsin.",
+	);
 	const [error, setError] = useState<string | null>(null);
 	const [submitting, setSubmitting] = useState(false);
 
@@ -93,6 +137,58 @@ function UploadPage() {
 		);
 	}
 
+	// Fill only empty fields, so nothing the uploader typed is overwritten.
+	const handleLookup = async () => {
+		setLooking(true);
+		try {
+			const result = await lookupMetadata({ data: { isbn, name } });
+			if (result.status === "unavailable") {
+				setLookupStatus(
+					"Google Books şu an yanıt vermiyor; formu elle doldurabilirsin.",
+				);
+				return;
+			}
+			if (result.status === "not-found") {
+				setLookupStatus("Google Books'ta eşleşen kitap bulunamadı.");
+				return;
+			}
+			const found = result.metadata;
+			const filled: string[] = [];
+			const fill = (
+				current: string,
+				next: string | undefined,
+				set: (value: string) => void,
+				label: string,
+			) => {
+				if (!current.trim() && next) {
+					set(next);
+					filled.push(label);
+				}
+			};
+			fill(name, found.title, setName, "ad");
+			fill(author, found.author, setAuthor, "yazar");
+			fill(publisher, found.publisher, setPublisher, "yayınevi");
+			fill(isbn, found.isbn, setIsbn, "ISBN");
+			fill(description, found.description, setDescription, "açıklama");
+			fill(category, found.categories?.join(", "), setCategory, "kategoriler");
+			if (!cover && found.coverThumbnail) {
+				setCover(found.coverThumbnail);
+				filled.push("kapak");
+			}
+			setLookupStatus(
+				filled.length > 0
+					? `Google Books'tan dolduruldu: ${filled.join(", ")}. Kaydetmeden önce kontrol et.`
+					: "Alanlar zaten dolu; hiçbir şey değiştirilmedi.",
+			);
+		} catch {
+			setLookupStatus(
+				"Bilgiler şu an getirilemedi; formu elle doldurabilirsin.",
+			);
+		} finally {
+			setLooking(false);
+		}
+	};
+
 	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		if (!file) {
@@ -112,6 +208,7 @@ function UploadPage() {
 					description,
 					category,
 					language,
+					coverThumbnail: cover ?? undefined,
 					fileName: file.name,
 					fileBase64,
 				},
@@ -198,6 +295,32 @@ function UploadPage() {
 								<option value="turkish">Türkçe</option>
 								<option value="english">English</option>
 							</select>
+						</div>
+					</div>
+
+					<div className="flex items-start gap-4 rounded-md border border-dashed border-border p-4">
+						{cover ? (
+							<BookCover
+								name={name}
+								author={author}
+								src={cover}
+								priority
+								className="w-16 shrink-0"
+							/>
+						) : null}
+						<div className="grid gap-3">
+							<output className="block text-sm text-muted-foreground">
+								{lookupStatus}
+							</output>
+							<Button
+								type="button"
+								variant="outline"
+								className="justify-self-start"
+								onClick={handleLookup}
+								disabled={looking || (!isbn.trim() && !name.trim())}
+							>
+								{looking ? "Aranıyor…" : "Bilgileri getir"}
+							</Button>
 						</div>
 					</div>
 

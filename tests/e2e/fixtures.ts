@@ -7,6 +7,9 @@ import {
 	type TestInfo,
 } from "@playwright/test";
 
+const TEST_COVER_PNG =
+	"iVBORw0KGgoAAAANSUhEUgAAABQAAAAeCAIAAACjcKk8AAAAHklEQVR4nGPQ98ojGzGMah7VPKp5VPOo5lHNw1kzAP+IHYdrq1oDAAAAAElFTkSuQmCC";
+
 export async function guardLocalNetwork(context: BrowserContext) {
 	await context.route("**/*", async (route) => {
 		const url = new URL(route.request().url());
@@ -18,6 +21,16 @@ export async function guardLocalNetwork(context: BrowserContext) {
 		) {
 			// Deterministic system-font fallback; do not request third-party fonts in tests.
 			await route.fulfill({ status: 200, contentType: "text/css", body: "" });
+		} else if (
+			url.hostname === "books.google.com" &&
+			route.request().resourceType() === "image"
+		) {
+			// Google Books covers come from the local API stub; serve a fixed image.
+			await route.fulfill({
+				status: 200,
+				contentType: "image/png",
+				body: Buffer.from(TEST_COVER_PNG, "base64"),
+			});
 		} else {
 			await route.abort("blockedbyclient");
 		}

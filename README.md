@@ -145,6 +145,24 @@ With the Vite plugin, environment selection happens at **build time**. Do not
 deploy a local build with only `wrangler deploy --env test`; use `deploy:test`.
 The local `npm run dev` and `npm run db:migrate` still use local D1 only.
 
+### Google Books lookup on upload
+
+The upload form's "Bilgileri getir" button and the server-side save fill empty
+fields (author, publisher, ISBN, description, categories, cover) from Google
+Books (`src/lib/book-metadata.ts`). Typed values are never overwritten, and a
+failed lookup never blocks an upload.
+
+Keyless requests share Google's anonymous daily quota and usually get HTTP 429,
+so set a free Google Cloud API key (Books API enabled) as a Worker secret:
+
+```bash
+npx wrangler secret put GOOGLE_BOOKS_API_KEY --env test --config wrangler.jsonc
+```
+
+Run this in your own terminal so the value is not logged. Secrets persist across
+deploys. Tests never call Google: the E2E server answers from a local stub
+(`GOOGLE_BOOKS_API_URL` in `wrangler.e2e.json`).
+
 ### Future production environment
 
 **Production is not configured.** The default D1 binding retains a local-only
