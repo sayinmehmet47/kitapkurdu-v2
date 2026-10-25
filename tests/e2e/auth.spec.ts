@@ -1,23 +1,24 @@
 import { capture, expect, guardLocalNetwork, signUp, test } from "./fixtures";
 
-test("signup, private todos, persistence, signout, and sign-in work together", async ({
+const BOOK = "/books/seed-suc-ve-ceza";
+
+test("signup, private rating, persistence, signout, and sign-in work together", async ({
 	page,
 	browser,
 }, info) => {
 	const credentials = await signUp(page);
 	await capture(page, info, "signed-in-account");
-	await page.goto("/demo/drizzle");
-	await expect(
-		page.getByRole("heading", { name: "Drizzle Demo" }),
-	).toBeVisible();
-	const title = `Read a book in ${info.project.name}`;
-	await page.getByPlaceholder("Add a new todo...").fill(title);
-	await page.getByRole("button", { name: "Add Todo", exact: true }).click();
-	await expect(page.getByText(title, { exact: true })).toBeVisible();
-	await page.reload();
-	await expect(page.getByText(title, { exact: true })).toBeVisible();
-	await capture(page, info, "private-todos");
 
+	const review = `Not from ${info.project.name} ${credentials.email}`;
+	await page.goto(BOOK);
+	await page.getByLabel("Puanın").selectOption("4");
+	await page.getByLabel("Yorum (isteğe bağlı)").fill(review);
+	await page.getByRole("button", { name: "Gönder", exact: true }).click();
+	await expect(page.getByRole("button", { name: "Güncelle" })).toBeVisible();
+	await page.reload();
+	await expect(page.getByLabel("Yorum (isteğe bağlı)")).toHaveValue(review);
+
+	// A second account sees the public review but not the first account's form state.
 	const otherContext = await browser.newContext({
 		baseURL: "http://127.0.0.1:4173",
 		extraHTTPHeaders: {
@@ -29,27 +30,30 @@ test("signup, private todos, persistence, signout, and sign-in work together", a
 		await guardLocalNetwork(otherContext);
 		const otherPage = await otherContext.newPage();
 		await signUp(otherPage);
-		await otherPage.goto("/demo/drizzle");
+		await otherPage.goto(BOOK);
+		await expect(otherPage.getByText(review, { exact: true })).toBeVisible();
+		await expect(otherPage.getByLabel("Yorum (isteğe bağlı)")).toHaveValue("");
 		await expect(
-			otherPage.getByText("No todos yet. Create one below!", { exact: true }),
+			otherPage.getByRole("button", { name: "Gönder", exact: true }),
 		).toBeVisible();
-		await expect(otherPage.getByText(title, { exact: true })).toHaveCount(0);
 	} finally {
 		await otherContext.close();
 	}
 
-	await page.getByRole("button", { name: "Çıkış yap", exact: true }).click();
-	await expect(
-		page.getByText("Sign in to create todos saved to your own account."),
-	).toBeVisible();
-	await expect(page.getByText(title, { exact: true })).toHaveCount(0);
-	await page.goto("/demo/better-auth");
-	await page.getByLabel("Email", { exact: true }).fill(credentials.email);
-	await page.getByLabel("Password", { exact: true }).fill(credentials.password);
-	await page.getByRole("button", { name: "Sign in", exact: true }).click();
-	await expect(
-		page.getByRole("heading", { name: "Welcome back" }),
-	).toBeVisible();
-	await page.goto("/demo/drizzle");
-	await expect(page.getByText(title, { exact: true })).toBeVisible();
+	await page
+		.getByRole("banner")
+		.getByRole("button", { name: "Çıkış yap", exact: true })
+		.click();
+	await page.getByRole("link", { name: "giriş yapın" }).click();
+	await expect(page).toHaveURL(/\/sign-in\?redirect=/);
+	await page.getByLabel("E-posta", { exact: true }).fill(credentials.email);
+	await page.getByLabel("Şifre", { exact: true }).fill(credentials.password);
+	await page
+		.getByRole("main")
+		.getByRole("button", { name: "Giriş yap", exact: true })
+		.click();
+
+	// Signing in returns to the book, with this account's rating restored.
+	await expect(page).toHaveURL(new RegExp(`${BOOK}$`));
+	await expect(page.getByLabel("Yorum (isteğe bağlı)")).toHaveValue(review);
 });

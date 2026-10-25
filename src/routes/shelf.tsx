@@ -95,7 +95,10 @@ function ShelfPage() {
 					) : (
 						<p className="text-muted-foreground">
 							Mesaj bırakmak için{" "}
-							<Link to="/demo/better-auth">giriş yapın</Link>.
+							<Link to="/sign-in" search={{ redirect: "/shelf" }}>
+								giriş yapın
+							</Link>
+							.
 						</p>
 					)}
 				</div>

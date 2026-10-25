@@ -30,9 +30,10 @@ session cookies remain valid. Never commit it. `BETTER_AUTH_URL` defaults to
 ### Learn the stack
 
 1. Edit `src/routes/index.tsx` to see the home page update.
-2. Create an account at `/demo/better-auth`.
-3. Visit `/demo/drizzle`, add a todo, and refresh. Each account sees only its own todos.
-4. Restart the dev server: accounts, sessions, and todos remain in local D1.
+2. Create an account at `/sign-in` ("Kayıt ol").
+3. Open a book under `/books`, rate it, and refresh. Your rating form is restored
+   for your account only; other accounts see the public review, not your form.
+4. Restart the dev server: accounts, sessions, and ratings remain in local D1.
 
 Request flow: React → TanStack Start server function/API route → Better Auth and
 Drizzle → D1. `src/lib/auth.ts` reads Worker bindings; `src/lib/auth-config.ts`
@@ -87,10 +88,9 @@ This project uses [Tailwind CSS](https://tailwindcss.com/) for styling.
 
 If you prefer not to use Tailwind CSS:
 
-1. Remove the demo pages in `src/routes/demo/`
-2. Replace the Tailwind import in `src/styles.css` with your own styles
-3. Remove `tailwindcss()` from the plugins array in `vite.config.ts`
-4. Remove `@tailwindcss/vite` and `tailwindcss` from `package.json`
+1. Replace the Tailwind import in `src/styles.css` with your own styles
+2. Remove `tailwindcss()` from the plugins array in `vite.config.ts`
+3. Remove `@tailwindcss/vite` and `tailwindcss` from `package.json`
 
 ## Linting & Formatting
 
@@ -159,8 +159,9 @@ sessions, verification records, and rate-limit counters are persistent. D1 does
 not support interactive transactions, so the auth adapter explicitly disables them.
 
 The `/api/auth/$` route handles signup, signin, session lookup, and signout.
-Server-side todo operations check the session and scope queries to the current
-user. Email/password login is available for local learning; Google OAuth, email
+Server functions that write (ratings, shelf messages) check the session and
+scope writes to the current user. The sign-in page lives at `/sign-in` and only
+follows same-site `redirect` paths (`src/lib/redirect.ts`). Email/password login is available for local learning; Google OAuth, email
 verification, and password-reset email delivery are not configured yet.
 
 Keep all schema migrations in the shared Drizzle/Wrangler flow above; do not run
@@ -318,11 +319,6 @@ function PeopleComponent() {
 ```
 
 Loaders simplify your data fetching logic dramatically. Check out more information in the [Loader documentation](https://tanstack.com/router/latest/docs/framework/react/guide/data-loading#loader-parameters).
-
-
-# Demo files
-
-Files prefixed with `demo` can be safely deleted. They are there to provide a starting point for you to play around with the features you've installed.
 
 
 # Learn More

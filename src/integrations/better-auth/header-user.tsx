@@ -1,9 +1,10 @@
-import { Link, useRouter } from "@tanstack/react-router";
+import { Link, useRouter, useRouterState } from "@tanstack/react-router";
 import { authClient } from "#/lib/auth-client";
 
 export default function BetterAuthHeader() {
 	const router = useRouter();
 	const { data: session, isPending } = authClient.useSession();
+	const location = useRouterState({ select: (state) => state.location });
 
 	if (isPending) {
 		return <div className="h-9 w-20 animate-pulse rounded-md bg-muted" />;
@@ -40,9 +41,13 @@ export default function BetterAuthHeader() {
 		);
 	}
 
+	// The sign-in page already is the form; a second entry point is noise.
+	if (location.pathname === "/sign-in") return null;
+
 	return (
 		<Link
-			to="/demo/better-auth"
+			to="/sign-in"
+			search={{ redirect: location.href }}
 			className="inline-flex h-9 items-center rounded-md border border-input px-3.5 text-sm font-medium text-foreground no-underline transition-colors hover:bg-muted"
 		>
 			Giriş yap

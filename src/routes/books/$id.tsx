@@ -302,7 +302,10 @@ function BookDetailPage() {
 						) : (
 							<p className="text-muted-foreground">
 								Değerlendirmek için{" "}
-								<Link to="/demo/better-auth">giriş yapın</Link>.
+								<Link to="/sign-in" search={{ redirect: `/books/${item.id}` }}>
+									giriş yapın
+								</Link>
+								.
 							</p>
 						)}
 					</div>
