@@ -16,6 +16,7 @@ import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as BooksIndexRouteImport } from './routes/books/index'
 import { Route as BooksIdRouteImport } from './routes/books/$id'
 import { Route as BooksNewRouteImport } from './routes/books/new'
+import { Route as ReadIdRouteImport } from './routes/read/$id'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiBooksIdDownloadRouteImport } from './routes/api/books/$id/download'
 
@@ -54,6 +55,11 @@ const BooksNewRoute = BooksNewRouteImport.update({
   path: '/books/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ReadIdRoute = ReadIdRouteImport.update({
+  id: '/read/$id',
+  path: '/read/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -72,6 +78,7 @@ export interface FileRoutesByFullPath {
   '/sign-in': typeof SignInRoute
   '/books/$id': typeof BooksIdRoute
   '/books/new': typeof BooksNewRoute
+  '/read/$id': typeof ReadIdRoute
   '/books/': typeof BooksIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/books/$id/download': typeof ApiBooksIdDownloadRoute
@@ -83,6 +90,7 @@ export interface FileRoutesByTo {
   '/sign-in': typeof SignInRoute
   '/books/$id': typeof BooksIdRoute
   '/books/new': typeof BooksNewRoute
+  '/read/$id': typeof ReadIdRoute
   '/books': typeof BooksIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/books/$id/download': typeof ApiBooksIdDownloadRoute
@@ -95,6 +103,7 @@ export interface FileRoutesById {
   '/sign-in': typeof SignInRoute
   '/books/$id': typeof BooksIdRoute
   '/books/new': typeof BooksNewRoute
+  '/read/$id': typeof ReadIdRoute
   '/books/': typeof BooksIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/books/$id/download': typeof ApiBooksIdDownloadRoute
@@ -108,6 +117,7 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/books/$id'
     | '/books/new'
+    | '/read/$id'
     | '/books/'
     | '/api/auth/$'
     | '/api/books/$id/download'
@@ -119,6 +129,7 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/books/$id'
     | '/books/new'
+    | '/read/$id'
     | '/books'
     | '/api/auth/$'
     | '/api/books/$id/download'
@@ -130,6 +141,7 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/books/$id'
     | '/books/new'
+    | '/read/$id'
     | '/books/'
     | '/api/auth/$'
     | '/api/books/$id/download'
@@ -142,6 +154,7 @@ export interface RootRouteChildren {
   SignInRoute: typeof SignInRoute
   BooksIdRoute: typeof BooksIdRoute
   BooksNewRoute: typeof BooksNewRoute
+  ReadIdRoute: typeof ReadIdRoute
   BooksIndexRoute: typeof BooksIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiBooksIdDownloadRoute: typeof ApiBooksIdDownloadRoute
@@ -198,6 +211,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BooksNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/read/$id': {
+      id: '/read/$id'
+      path: '/read/$id'
+      fullPath: '/read/$id'
+      preLoaderRoute: typeof ReadIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -222,6 +242,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignInRoute: SignInRoute,
   BooksIdRoute: BooksIdRoute,
   BooksNewRoute: BooksNewRoute,
+  ReadIdRoute: ReadIdRoute,
   BooksIndexRoute: BooksIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiBooksIdDownloadRoute: ApiBooksIdDownloadRoute,
