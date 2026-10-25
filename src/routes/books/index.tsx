@@ -5,13 +5,22 @@ import { BookCard } from "#/components/books/BookCard";
 import { Button, buttonVariants } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
 import { createDb } from "#/db";
-import { bookPageInput, listBooks } from "#/lib/books";
+import { bookPageInput, listBooks, listCategories } from "#/lib/books";
 
 const getBooks = createServerFn({ method: "GET" })
 	.validator(bookPageInput)
 	.handler(async ({ data }) => listBooks(createDb(env.DB), data));
 
-type Search = { page?: number; q?: string };
+const getCategories = createServerFn({ method: "GET" }).handler(async () =>
+	listCategories(createDb(env.DB)),
+);
+
+type Search = {
+	page?: number;
+	q?: string;
+	language?: "turkish" | "english";
+	category?: string;
+};
 
 export const Route = createFileRoute("/books/")({
 	validateSearch: (search: Record<string, unknown>): Search => {
@@ -21,18 +30,52 @@ export const Route = createFileRoute("/books/")({
 			typeof search.q === "string" && search.q.trim()
 				? search.q.trim()
 				: undefined;
-		return { page, q };
+		const language =
+			search.language === "turkish" || search.language === "english"
+				? search.language
+				: undefined;
+		const category =
+			typeof search.category === "string" && search.category.trim()
+				? search.category.trim()
+				: undefined;
+		return { page, q, language, category };
 	},
-	loaderDeps: ({ search }) => ({ page: search.page ?? 1, q: search.q }),
-	loader: async ({ deps }) =>
-		getBooks({ data: { page: deps.page, limit: 12, q: deps.q } }),
+	loaderDeps: ({ search }) => ({
+		page: search.page ?? 1,
+		q: search.q,
+		language: search.language,
+		category: search.category,
+	}),
+	loader: async ({ deps }) => {
+		const [books, categories] = await Promise.all([
+			getBooks({
+				data: {
+					page: deps.page,
+					limit: 12,
+					q: deps.q,
+					language: deps.language,
+					category: deps.category,
+				},
+			}),
+			getCategories(),
+		]);
+		return { ...books, categories };
+	},
 	component: BooksPage,
 });
 
 function BooksPage() {
-	const { page = 1, q } = Route.useSearch();
+	const { page = 1, q, language, category } = Route.useSearch();
 	const navigate = useNavigate();
-	const { results, total, pageCount } = Route.useLoaderData();
+	const { results, total, pageCount, categories } = Route.useLoaderData();
+
+	const searchFor = (next: Partial<Search>) => ({
+		page: 1,
+		...(q ? { q } : {}),
+		...(language ? { language } : {}),
+		...(category ? { category } : {}),
+		...next,
+	});
 
 	return (
 		<main className="page-wrap pt-10 pb-4 sm:pt-14">
@@ -58,52 +101,107 @@ function BooksPage() {
 					</Link>
 				</div>
 
-				<search className="w-full md:max-w-md">
-					<form
-						onSubmit={(event) => {
-							event.preventDefault();
-							const value = String(
-								new FormData(event.currentTarget).get("q") ?? "",
-							).trim();
-							navigate({
-								to: "/books",
-								search: value ? { page: 1, q: value } : { page: 1 },
-							});
-						}}
-						className="flex gap-2"
-					>
-						<Input
-							key={q ?? ""}
-							type="search"
-							name="q"
-							aria-label="Kitap ara"
-							defaultValue={q ?? ""}
-							placeholder="Kitap, yazar veya açıklama ara"
-							className="h-10 bg-card"
-						/>
-						<Button type="submit" className="h-10">
-							Ara
-						</Button>
-						{q ? (
-							<Link
-								to="/books"
-								search={{ page: 1 }}
-								className={buttonVariants({
-									variant: "outline",
-									className: "h-10",
-								})}
+				<div className="w-full md:max-w-md">
+					<search>
+						<form
+							onSubmit={(event) => {
+								event.preventDefault();
+								const value = String(
+									new FormData(event.currentTarget).get("q") ?? "",
+								).trim();
+								navigate({
+									to: "/books",
+									search: searchFor({ q: value || undefined }),
+								});
+							}}
+							className="flex gap-2"
+						>
+							<Input
+								key={q ?? ""}
+								type="search"
+								name="q"
+								aria-label="Kitap ara"
+								defaultValue={q ?? ""}
+								placeholder="Kitap, yazar veya açıklama ara"
+								className="h-10 bg-card"
+							/>
+							<Button type="submit" className="h-10">
+								Ara
+							</Button>
+							{q ? (
+								<Link
+									to="/books"
+									search={searchFor({ q: undefined })}
+									className={buttonVariants({
+										variant: "outline",
+										className: "h-10",
+									})}
+								>
+									Temizle
+								</Link>
+							) : null}
+						</form>
+					</search>
+
+					<div className="mt-3 flex flex-wrap gap-3">
+						<label className="flex items-center gap-2 text-sm">
+							<span className="text-muted-foreground">Dil</span>
+							<select
+								aria-label="Dile göre filtrele"
+								value={language ?? ""}
+								onChange={(event) => {
+									const value = event.target.value;
+									navigate({
+										to: "/books",
+										search: searchFor({
+											language:
+												value === "turkish" || value === "english"
+													? value
+													: undefined,
+										}),
+									});
+								}}
+								className="h-10 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
 							>
-								Temizle
-							</Link>
-						) : null}
-					</form>
-				</search>
+								<option value="">Tüm diller</option>
+								<option value="turkish">Türkçe</option>
+								<option value="english">English</option>
+							</select>
+						</label>
+
+						<label className="flex items-center gap-2 text-sm">
+							<span className="text-muted-foreground">Kategori</span>
+							<select
+								aria-label="Kategoriye göre filtrele"
+								value={category ?? ""}
+								onChange={(event) =>
+									navigate({
+										to: "/books",
+										search: searchFor({
+											category: event.target.value || undefined,
+										}),
+									})
+								}
+								className="h-10 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+							>
+								<option value="">Tüm kategoriler</option>
+								{categories.map((item) => (
+									<option key={item} value={item}>
+										{item}
+									</option>
+								))}
+							</select>
+						</label>
+					</div>
+				</div>
 			</header>
 
 			{results.length === 0 ? (
 				<div className="py-24 text-center">
 					<p className="font-serif text-2xl">
-						{q ? "Bu aramayla eşleşen kitap yok." : "Henüz kitap eklenmemiş."}
+						{q || language || category
+							? "Filtrelerle eşleşen kitap bulunamadı."
+							: "Henüz kitap eklenmemiş."}
 					</p>
 					{q ? (
 						<p className="mt-2 text-muted-foreground">
@@ -129,7 +227,7 @@ function BooksPage() {
 					{page > 1 ? (
 						<Link
 							to="/books"
-							search={{ page: page - 1, ...(q ? { q } : {}) }}
+							search={searchFor({ page: page - 1 })}
 							className={buttonVariants({ variant: "outline" })}
 						>
 							← Önceki
@@ -143,7 +241,7 @@ function BooksPage() {
 					{page < pageCount ? (
 						<Link
 							to="/books"
-							search={{ page: page + 1, ...(q ? { q } : {}) }}
+							search={searchFor({ page: page + 1 })}
 							className={buttonVariants({ variant: "outline" })}
 						>
 							Sonraki →

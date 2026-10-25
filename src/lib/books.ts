@@ -1,4 +1,4 @@
-import { and, count, desc, eq, isNull, like, or } from "drizzle-orm";
+import { and, count, desc, eq, isNull, like, or, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "#/db";
 import { book } from "#/db/schema";
@@ -7,26 +7,38 @@ export const bookPageInput = z.object({
 	page: z.number().int().min(1).default(1),
 	limit: z.number().int().min(1).max(50).default(12),
 	q: z.string().trim().max(200).optional(),
+	language: z.enum(["turkish", "english"]).optional(),
+	category: z.string().trim().max(100).optional(),
 });
 
 export async function listBooks(db: Database, input: unknown) {
-	const { page, limit, q } = bookPageInput.parse(input);
+	const { page, limit, q, language, category } = bookPageInput.parse(input);
 	const offset = (page - 1) * limit;
 
-	// D1 has no full-text index; MVP uses LIKE (case-insensitive for ASCII).
-	// Turkish accent folding and FTS5 are a follow-up.
-	const where = q
-		? and(
-				isNull(book.duplicateOfId),
-				or(
-					like(book.name, `%${q}%`),
-					like(book.author, `%${q}%`),
-					like(book.description, `%${q}%`),
-					like(book.isbn, `%${q}%`),
-					like(book.publisher, `%${q}%`),
-				),
-			)
-		: isNull(book.duplicateOfId);
+	const conditions: (SQL<unknown> | undefined)[] = [isNull(book.duplicateOfId)];
+
+	if (q) {
+		// D1 has no full-text index; MVP uses LIKE (case-insensitive for ASCII).
+		// Turkish accent folding and FTS5 are a follow-up.
+		conditions.push(
+			or(
+				like(book.name, `%${q}%`),
+				like(book.author, `%${q}%`),
+				like(book.description, `%${q}%`),
+				like(book.isbn, `%${q}%`),
+				like(book.publisher, `%${q}%`),
+			),
+		);
+	}
+
+	if (language) conditions.push(eq(book.language, language));
+
+	if (category) {
+		// Category is stored as a JSON array; match the quoted element.
+		conditions.push(like(book.category, `%"${category}"%`));
+	}
+
+	const where = and(...conditions);
 	const [results, countRows] = await Promise.all([
 		db
 			.select()
@@ -54,4 +66,16 @@ export async function getBookById(db: Database, id: string) {
 		.from(book)
 		.where(and(eq(book.id, id), isNull(book.duplicateOfId)))
 		.get();
+}
+
+export async function listCategories(db: Database) {
+	const rows = await db
+		.select({ category: book.category })
+		.from(book)
+		.where(isNull(book.duplicateOfId));
+	const categories = new Set<string>();
+	for (const row of rows) {
+		for (const item of row.category ?? []) categories.add(item);
+	}
+	return [...categories].sort();
 }
