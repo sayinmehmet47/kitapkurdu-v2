@@ -23,13 +23,20 @@ test("an EPUB renders inside the iPhone WebKit reader", async ({ page }) => {
 	await expect(page.getByText("Kitap açılıyor…")).toHaveCount(0, {
 		timeout: 20_000,
 	});
-	await expect(page.getByRole("button", { name: "Sonraki sayfa" })).toBeVisible();
+	await expect(
+		page.getByRole("button", { name: "Sonraki sayfa" }),
+	).toBeVisible();
 	await expect
-		.poll(() => page.frames().filter((frame) => frame.url().startsWith("blob:")).length)
+		.poll(
+			() =>
+				page.frames().filter((frame) => frame.url().startsWith("blob:")).length,
+		)
 		.toBeGreaterThan(0);
 });
 
-test("a temporary EPUB download error explains the issue and allows retry", async ({ page }) => {
+test("a temporary EPUB download error explains the issue and allows retry", async ({
+	page,
+}) => {
 	await signUp(page);
 	await openUploadForm(page);
 	const name = `WebKit retry ${randomUUID().slice(0, 8)}`;
@@ -42,10 +49,16 @@ test("a temporary EPUB download error explains the issue and allows retry", asyn
 	await page.getByRole("button", { name: "Yükle", exact: true }).click();
 	await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
 	await page.route("**/api/books/*/download", (route) =>
-		route.fulfill({ status: 503, contentType: "text/plain", body: "temporarily unavailable" }),
+		route.fulfill({
+			status: 503,
+			contentType: "text/plain",
+			body: "temporarily unavailable",
+		}),
 	);
 	await page.getByRole("link", { name: "Kitabı aç", exact: true }).click();
-	await expect(page.getByRole("alert")).toContainText("EPUB dosyası indirilemedi.");
+	await expect(page.getByRole("alert")).toContainText(
+		"EPUB dosyası indirilemedi.",
+	);
 	await page.unroute("**/api/books/*/download");
 	await page.getByRole("button", { name: "Tekrar dene" }).click();
 	await expect(page.getByText("Kitap açılıyor…")).toHaveCount(0, {
