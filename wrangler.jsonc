@@ -1,0 +1,54 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tanstack-start-app",
+  "account_id": "f9551f25fddffac67c8dafc94444dfa7",
+  "compatibility_date": "2026-10-25",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "@tanstack/react-start/server-entry",
+  "vars": {
+    "BETTER_AUTH_URL": "http://localhost:3000"
+  },
+  "secrets": {
+    "required": ["BETTER_AUTH_SECRET"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "kitapkurdu",
+      // Local-only placeholder. Replace with a real D1 ID before deploying.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "traces": { "enabled": true }
+  },
+  "env": {
+    "test": {
+      "name": "kitapkurdu-v2-test",
+      "workers_dev": true,
+      "preview_urls": false,
+      "routes": [
+        {
+          "pattern": "kitapkurdu.kigx.xyz",
+          "custom_domain": true
+        }
+      ],
+      "vars": {
+        "BETTER_AUTH_URL": "https://kitapkurdu.kigx.xyz"
+      },
+      "secrets": {
+        "required": ["BETTER_AUTH_SECRET"]
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "kitapkurdu-v2-test",
+          "database_id": "b95ae0fe-4ccd-4247-b24c-fb3e634ed767",
+          "migrations_dir": "drizzle"
+        }
+      ]
+    }
+  }
+}
