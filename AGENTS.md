@@ -26,6 +26,9 @@ from the parent `projectsRoot` directory or sibling projects.
 
 Never merge, publish a deployment, run remote migrations, change DNS/billing,
 rotate secrets, or enable automatic deployment without explicit user approval.
+Deploy the hosted test site only through the manual **Deploy test** GitHub
+workflow from `main` (it waits for the owner's approval). Never deploy from a
+local checkout, feature branch, or worktree.
 Commit, push, and open a PR only when included in the user's request. Do not
 commit directly to `main` after the initial repository bootstrap.
 
@@ -48,8 +51,8 @@ committed npm lockfile and `npm ci` for a clean checkout.
 | `npm run db:generate` | Generate SQL after editing the schema |
 | `npm run db:migrate` | Apply SQL to development D1 locally only |
 | `npm run cf:typegen` | Regenerate Worker binding types |
-| `npm run db:migrate:test` | REMOTE hosted test migration; approval required |
-| `npm run deploy:test` | REMOTE hosted test deployment; approval required |
+| `npm run db:migrate:test` | REMOTE hosted test migration; run by the Deploy test workflow |
+| `npm run deploy:test` | REMOTE hosted test deployment; run by the Deploy test workflow |
 
 Do not use the default `npm run deploy`: the default config is local-only.
 With the Vite plugin, select the Cloudflare environment at build time. The test
@@ -81,4 +84,6 @@ deployment script handles this; do not deploy a local/E2E build with `--env test
 - Review migration SQL. Prefer backward-compatible changes. Worker rollback does
   not restore database contents; destructive migrations require a recovery plan.
 - CI runs read-only verification on PRs; it has no Cloudflare deployment secrets
-  and never deploys. Merging and deployments remain user-controlled.
+  and never deploys. Only the manual, approval-gated **Deploy test** workflow can
+  read `CLOUDFLARE_API_TOKEN` (stored in the `test` environment). Merging and
+  deployments remain user-controlled.
