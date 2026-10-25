@@ -54,7 +54,7 @@ jobs:
         run: npm run deploy:test
       - name: Smoke check the hosted site
         run: |
-          for path in / /books /sign-in; do
+          for path in / /books /sign-in /reader/frame; do
             code=$(curl -s -o /dev/null -w '%{http_code}' --retry 3 --retry-delay 5 "https://kitapkurdu.kigx.xyz$path")
             echo "$path -> $code"
             test "$code" = 200
