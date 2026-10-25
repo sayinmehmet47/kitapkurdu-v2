@@ -124,10 +124,6 @@ export function updateBook(db: Database, id: string, input: unknown) {
 		.get();
 }
 
-export function deleteBookById(db: Database, id: string) {
-	return db.delete(book).where(eq(book.id, id)).returning().get();
-}
-
 export function markBookDuplicate(
 	db: Database,
 	id: string,

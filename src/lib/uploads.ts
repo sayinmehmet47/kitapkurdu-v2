@@ -1,7 +1,7 @@
-import { and, count, eq, gt, isNotNull, sum } from "drizzle-orm";
+import { and, count, eq, gt, isNotNull, sql, sum } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "#/db";
-import { book } from "#/db/schema";
+import { book, deletedBookUpload } from "#/db/schema";
 import {
 	BookFileError,
 	type BookFileFormat,
@@ -72,16 +72,23 @@ async function assertWithinLimits(
 	incomingBytes: number,
 	limits: UploadLimits,
 ) {
+	const cutoff = new Date(Date.now() - DAY_MS);
+	const deletedRecent = db
+		.select({ uploads: count() })
+		.from(deletedBookUpload)
+		.where(
+			and(
+				eq(deletedBookUpload.uploaderId, userId),
+				gt(deletedBookUpload.uploadedAt, cutoff),
+			),
+		);
 	const [recent, storage] = await Promise.all([
 		db
-			.select({ uploads: count() })
+			// One statement/snapshot: a concurrent delete must not fall between
+			// independently reading the live and deleted-upload counts.
+			.select({ uploads: sql<number>`count(*) + (${deletedRecent})` })
 			.from(book)
-			.where(
-				and(
-					eq(book.uploaderId, userId),
-					gt(book.createdAt, new Date(Date.now() - DAY_MS)),
-				),
-			)
+			.where(and(eq(book.uploaderId, userId), gt(book.createdAt, cutoff)))
 			.get(),
 		// Every stored file is an R2 object, so the D1 size total tracks R2 usage.
 		db

@@ -36,6 +36,13 @@
       "when": 1792933026228,
       "tag": "0004_familiar_jetstream",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1792949717234,
+      "tag": "0005_deleted_upload_receipts",
+      "breakpoints": true
     }
   ]
 }

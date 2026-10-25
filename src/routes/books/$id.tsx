@@ -12,10 +12,11 @@ import { Label } from "#/components/ui/label";
 import { Textarea } from "#/components/ui/textarea";
 import { createDb } from "#/db";
 import { getAuth } from "#/lib/auth";
+import { BookDeletionError, deleteBookWithFile } from "#/lib/book-deletion";
 import { storedBookFormat } from "#/lib/book-file-format";
+import { canDeleteBook } from "#/lib/book-permissions";
 import {
 	bookUpdateInput,
-	deleteBookById,
 	getBookById,
 	markBookDuplicate,
 	updateBook,
@@ -54,6 +55,7 @@ const getBookDetail = createServerFn({ method: "GET" })
 			myRating,
 			isSignedIn: Boolean(session),
 			isAdmin: session?.user?.role === "admin",
+			canDelete: canDeleteBook(session?.user ?? null, item),
 		};
 	});
 
@@ -93,11 +95,25 @@ const submitDeleteBook = createServerFn({ method: "POST" })
 		const session = await getAuth().api.getSession({
 			headers: getRequestHeaders(),
 		});
-		if (session?.user?.role !== "admin") {
-			throw new Error("Yönetici izni gerekiyor.");
+		try {
+			await deleteBookWithFile(
+				createDb(env.DB),
+				env.BOOKS,
+				data.id,
+				session?.user ?? null,
+			);
+			return { success: true as const };
+		} catch (error) {
+			if (error instanceof BookDeletionError)
+				return { success: false as const, error: error.message };
+			console.warn(
+				`Book deletion failed: ${error instanceof Error ? error.name : "error"}`,
+			);
+			return {
+				success: false as const,
+				error: "Kitap tamamen silinemedi. Lütfen tekrar dene.",
+			};
 		}
-		await deleteBookById(createDb(env.DB), data.id);
-		return { success: true };
 	});
 
 const submitMarkDuplicate = createServerFn({ method: "POST" })
@@ -217,6 +233,57 @@ function RatingForm({
 	);
 }
 
+function DeleteBookButton({ id }: { id: string }) {
+	const router = useRouter();
+	const [busy, setBusy] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+	const remove = async () => {
+		if (
+			busy ||
+			!window.confirm(
+				"Bu kitap, dosyası ve değerlendirmeleri kalıcı olarak silinecek. Devam edilsin mi?",
+			)
+		)
+			return;
+		setBusy(true);
+		setError(null);
+		try {
+			const result = await submitDeleteBook({ data: { id } });
+			if (!result.success) {
+				setError(result.error);
+				return;
+			}
+			await router.navigate({ to: "/books" });
+			await router.invalidate();
+		} catch {
+			setError("Kitap tamamen silinemedi. Lütfen tekrar dene.");
+		} finally {
+			setBusy(false);
+		}
+	};
+	return (
+		<div className="rounded-md border border-border bg-card p-4 sm:p-6">
+			<p className="mb-4 max-w-prose text-sm text-muted-foreground">
+				Silme işlemi kitabı, yüklenen dosyayı ve kitaba ait değerlendirmeleri
+				kalıcı olarak kaldırır.
+			</p>
+			<Button
+				type="button"
+				onClick={remove}
+				variant="destructive"
+				disabled={busy}
+			>
+				{busy ? "Siliniyor…" : "Kitabı sil"}
+			</Button>
+			{error ? (
+				<p role="alert" className="mt-3 text-sm text-destructive">
+					{error}
+				</p>
+			) : null}
+		</div>
+	);
+}
+
 function AdminPanel({
 	item,
 }: {
@@ -273,17 +340,6 @@ function AdminPanel({
 			router.invalidate();
 		} catch {
 			setError("Kopya olarak işaretlenemedi.");
-		}
-	};
-
-	const remove = async () => {
-		if (!window.confirm("Bu kitabı silmek istediğinize emin misiniz?")) return;
-		setError(null);
-		try {
-			await submitDeleteBook({ data: { id: item.id } });
-			router.navigate({ to: "/books" });
-		} catch {
-			setError("Silinemedi.");
 		}
 	};
 
@@ -384,10 +440,8 @@ function AdminPanel({
 				</form>
 			</div>
 
-			<div className="mt-4 rounded-md border border-border bg-card p-4 sm:p-6">
-				<Button type="button" onClick={remove} variant="destructive">
-					Kitabı sil
-				</Button>
+			<div className="mt-4">
+				<DeleteBookButton id={item.id} />
 			</div>
 
 			{error ? (
@@ -420,7 +474,8 @@ function BookDetailPage() {
 		);
 	}
 
-	const { item, summary, ratings, myRating, isSignedIn, isAdmin } = data;
+	const { item, summary, ratings, myRating, isSignedIn, isAdmin, canDelete } =
+		data;
 	const language = item.language === "english" ? "English" : "Türkçe";
 	const average = Number(summary?.average ?? 0);
 	const count = summary?.count ?? 0;
@@ -566,6 +621,17 @@ function BookDetailPage() {
 			</section>
 
 			{isAdmin ? <AdminPanel key={item.id} item={item} /> : null}
+			{canDelete && !isAdmin ? (
+				<section
+					aria-labelledby="owner-heading"
+					className="mt-16 border-t border-border pt-10"
+				>
+					<h2 id="owner-heading" className="mb-6 text-2xl font-semibold">
+						Yüklediğin kitap
+					</h2>
+					<DeleteBookButton key={item.id} id={item.id} />
+				</section>
+			) : null}
 		</main>
 	);
 }

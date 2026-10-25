@@ -7,8 +7,8 @@ import { test } from "node:test";
 import { Miniflare } from "miniflare";
 import { createDb } from "../src/db/index";
 import { book, user } from "../src/db/schema";
+import { deleteBookWithFile } from "../src/lib/book-deletion";
 import {
-	deleteBookById,
 	getBookById,
 	listBooks,
 	markBookDuplicate,
@@ -108,6 +108,15 @@ test("admin book actions update, hide duplicates, and delete", {
 		"duplicate must be hidden from listing",
 	);
 
-	await deleteBookById(db, canonical.id);
+	await deleteBookWithFile(
+		db,
+		{
+			delete: async () => {
+				assert.fail("A fileless seed must not touch R2");
+			},
+		},
+		canonical.id,
+		admin,
+	);
 	assert.equal(await getBookById(db, canonical.id), undefined);
 });

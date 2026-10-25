@@ -7,7 +7,7 @@ import {
 	UPLOAD_PATH,
 } from "../../src/lib/upload-request";
 import { samplePdf } from "../fixtures/book-files";
-import { capture, expect, signUp, test } from "./fixtures";
+import { capture, expect, openUploadForm, signUp, test } from "./fixtures";
 
 const tinyPdf = Buffer.from("%PDF-1.4\n% synthetic transport test\n");
 
@@ -110,7 +110,7 @@ test("choosing a PDF finds the ISBN printed inside it", async ({
 	page,
 }, info) => {
 	await signUp(page);
-	await page.goto("/books/new");
+	await openUploadForm(page);
 	await page.locator('input[type="file"]').setInputFiles({
 		name: "kunye.pdf",
 		mimeType: "application/pdf",

@@ -352,7 +352,11 @@ function UploadPage() {
 					Kitap Ekle
 				</h1>
 
-				<form onSubmit={handleSubmit} className="mt-8">
+				<form
+					onSubmit={handleSubmit}
+					data-hydrated={hydrated ? "true" : undefined}
+					className="mt-8"
+				>
 					<fieldset disabled={!hydrated} className="min-w-0 space-y-4">
 						<div className="space-y-1.5">
 							<Label htmlFor="file">
