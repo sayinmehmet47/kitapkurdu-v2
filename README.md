@@ -1,15 +1,22 @@
-Welcome to your new TanStack Start app!
+# KitapKurdu v2
+
+TanStack Start, React, Cloudflare Workers, D1, Drizzle, and Better Auth.
+
+Public source repository: https://github.com/sayinmehmet47/kitapkurdu-v2
 
 # Getting Started
 
 To run this application:
 
 ```bash
-npm install
+npm ci
 npm run cf:typegen
 npm run db:migrate
 npm run dev
 ```
+
+Use Node 24. `.tool-versions` pins the installed local version; CI uses the current
+Node 24 release. This app has its own Git repository, separate from `projectsRoot`.
 
 Open http://localhost:3000. Development uses a **local D1 database** stored in
 `.wrangler/state`; it does not provision or write to a Cloudflare account.
@@ -52,6 +59,25 @@ To build this application for production:
 ```bash
 npm run build
 ```
+
+## Daily quality workflow
+
+```bash
+npm run setup:browsers   # once after installing/updating browser tooling
+npm run verify          # lint, generated types, TypeScript, auth tests, build, browser tests
+npm run test:e2e:report  # view screenshots and test results
+```
+
+Playwright checks desktop and mobile Chromium against a real, locally built
+Worker with fresh test-only D1 data. It does not use your development account,
+`.env.local`, or hosted database. Screenshots are attached on successful key
+screens; failing tests also retain screenshots, traces, and videos.
+
+CI runs the same verification on pull requests and `main`, and keeps the browser
+evidence artifact for seven days. It has no Cloudflare credentials and does not
+deploy. Work on a feature branch, inspect the evidence, and get approval before
+merging or deploying. See [the development guide](docs/development.md) and
+`AGENTS.md` for the agent workflow and safety boundaries.
 
 ## Styling
 
