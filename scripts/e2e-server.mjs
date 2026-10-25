@@ -56,6 +56,13 @@ delete env.BETTER_AUTH_SECRET;
 delete env.BETTER_AUTH_URL;
 delete env.CLOUDFLARE_ENV;
 
+// Deterministic test-only catalog so the browse UI has something to render.
+// Covers are omitted on purpose to avoid external image requests in tests.
+const seedBooks = `INSERT INTO book (id, name, author, category, language, description) VALUES
+('seed-sefiller', 'Sefiller', 'Victor Hugo', '["Roman","Klasik"]', 'turkish', 'Klasik bir roman.'),
+('seed-suc-ve-ceza', 'Suç ve Ceza', 'Fyodor Dostoyevski', '["Roman"]', 'turkish', 'Psikolojik bir roman.'),
+('seed-1984', '1984', 'George Orwell', '["Bilim Kurgu"]', 'english', 'Distopik bir roman.');`;
+
 let child;
 let stopping = false;
 for (const signal of ["SIGINT", "SIGTERM"]) {
@@ -93,6 +100,18 @@ try {
 		configPath,
 		"--persist-to",
 		statePath,
+	]);
+	await run("wrangler/bin/wrangler.js", [
+		"d1",
+		"execute",
+		"DB",
+		"--local",
+		"--config",
+		configPath,
+		"--persist-to",
+		statePath,
+		"--command",
+		seedBooks,
 	]);
 	await run("vite/bin/vite.js", ["build"]);
 	await run("vite/bin/vite.js", [
