@@ -30,6 +30,7 @@ const FONTS = {
 
 const id = new URLSearchParams(location.search).get("id") ?? "";
 const positionKey = `kitapkurdu:reader:position:${id}`;
+const resetPosition = new URLSearchParams(location.search).get("reset") === "1";
 const status = document.getElementById("status");
 let view;
 // Replayed on "hello": the parent page may hydrate after this frame has loaded.
@@ -189,7 +190,7 @@ async function open() {
 	});
 	applySettings();
 	progress("position");
-	await view.init({ lastLocation: storage("get"), showTextStart: true });
+	await view.init({ lastLocation: resetPosition ? null : storage("get"), showTextStart: true });
 	status.remove();
 	readyMessage = { type: "ready", toc: tocItems(view.book.toc) };
 	post(readyMessage);
