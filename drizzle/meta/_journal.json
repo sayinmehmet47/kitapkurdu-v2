@@ -22,6 +22,13 @@
       "when": 1792931391631,
       "tag": "0002_lying_yellowjacket",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1792932011066,
+      "tag": "0003_white_nuke",
+      "breakpoints": true
     }
   ]
 }
