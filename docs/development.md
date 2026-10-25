@@ -26,7 +26,8 @@ only the test runner's browser and installs its Linux system dependencies too.
 3. Ask the agent to implement the feature and a regression test.
 4. Run `npm run verify` and inspect the screenshots, not just the exit code.
 5. Review the PR diff, test results, and risk notes. A human decides to merge.
-6. Deployment is a separate, explicit decision. CI does not deploy on merge.
+6. Deployment is a separate, explicit decision. CI does not deploy on merge; the
+   manual Deploy test workflow deploys `main` after the owner approves it.
 
 Example agent request:
 
@@ -118,7 +119,11 @@ also apply to administrators; force pushes and branch deletion are blocked.
 No second-person approval is required so the sole maintainer can merge their own
 PR after inspecting the diff and evidence. Merging remains a manual decision.
 
-Hosted test remains https://kitapkurdu.kigx.xyz with its existing D1 and secrets.
-After approval, use `npm run db:migrate:test` for reviewed schema changes and
-`npm run deploy:test` to publish. Do not use the default deploy script or deploy
-an E2E build. Worker code rollback does not restore database data.
+Hosted test remains https://kitapkurdu.kigx.xyz with its existing D1, R2 bucket,
+and secrets. Deploy it with the manual **Deploy test** workflow
+(`.github/workflows/deploy-test.yml`): it only runs from `main`, waits for the
+owner's approval on the `test` environment, then runs quick checks,
+`npm run db:migrate:test`, `npm run deploy:test`, and a smoke check. The
+environment's `CLOUDFLARE_API_TOKEN` is passed only to the migration and deploy
+steps. Do not deploy from a local checkout or worktree, use the default deploy
+script, or deploy an E2E build. Worker code rollback does not restore database data.

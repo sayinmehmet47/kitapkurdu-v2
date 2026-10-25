@@ -125,7 +125,16 @@ as a Cloudflare Worker secret and is separate from the local secret. Local accou
 are not copied; create a new account on the test site. This is a public learning
 deployment, not a production-ready service. Use test data only.
 
-After explicitly choosing to update the test deployment:
+To update the test deployment, run the **Deploy test** workflow on GitHub
+(Actions → Deploy test → Run workflow, branch `main`) and approve it. It runs
+quick checks, applies D1 migrations, deploys `main`, and smoke-checks the site:
+
+```bash
+gh workflow run deploy-test.yml --ref main   # then approve the "test" environment
+```
+
+The workflow runs these scripts; use them locally only as a fallback, from an
+up-to-date `main` checkout, after explicit approval:
 
 ```bash
 npm run db:migrate:test   # REMOTE: updates only the hosted test database
