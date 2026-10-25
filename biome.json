@@ -1,18 +1,27 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.2.4/schema.json",
+	"$schema": "https://biomejs.dev/schemas/2.4.5/schema.json",
 	"vcs": {
-		"enabled": false,
+		"enabled": true,
 		"clientKind": "git",
-		"useIgnoreFile": false
+		"useIgnoreFile": true
 	},
 	"files": {
 		"ignoreUnknown": false,
 		"includes": [
-			"**/src/**/*",
-			"**/tests/**/*.ts",
-			"**/.vscode/**/*",
-			"**/index.html",
-			"**/vite.config.ts",
+			"src/**",
+			"tests/**/*.ts",
+			"scripts/**/*.mjs",
+			"playwright.config.ts",
+			"playwright-mcp.config.json",
+			"package.json",
+			"biome.json",
+			"drizzle.config.ts",
+			"opencode.jsonc",
+			"wrangler*.jsonc",
+			"wrangler.e2e.json",
+			"tsconfig.json",
+			".vscode/**",
+			"vite.config.ts",
 			"!**/src/routeTree.gen.ts",
 			"!**/src/styles.css"
 		]

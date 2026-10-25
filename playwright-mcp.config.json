@@ -1,0 +1,19 @@
+{
+	"browser": {
+		"browserName": "chromium",
+		"isolated": true,
+		"launchOptions": { "headless": true },
+		"contextOptions": { "serviceWorkers": "block" }
+	},
+	"network": {
+		"allowedOrigins": [
+			"http://localhost:3000",
+			"http://127.0.0.1:3000",
+			"http://127.0.0.1:4173"
+		]
+	},
+	"webmcp": false,
+	"outputDir": "artifacts/browser",
+	"outputMaxSize": 104857600,
+	"imageResponses": "allow"
+}

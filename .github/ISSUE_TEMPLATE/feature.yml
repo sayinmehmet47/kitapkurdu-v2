@@ -1,0 +1,21 @@
+name: Feature
+description: A bounded feature request for a human or coding agent
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal and user benefit
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Describe observable behavior and the tests/screenshots that prove it.
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Out of scope and permissions
+      description: Specify whether remote changes are authorized. Default is no deployment or remote data changes.

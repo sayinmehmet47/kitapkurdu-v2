@@ -1,0 +1,21 @@
+name: Bug
+description: Reproducible behavior that needs a regression test
+body:
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Include local versus hosted test, browser, and viewport. Never include credentials.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Safe screenshots or CI report link
+      description: Use test accounts and redact personal information and secrets.
