@@ -195,4 +195,106 @@ test("book uploads store the file in R2 and the metadata in D1", {
 		"Rejected uploads must not write to R2",
 	);
 	assert.equal((await db.select().from(book)).length, 3);
+
+	// Google Books enrichment fills only empty fields; typed values win.
+	const roomy = { maxTotalBytes: 1024 ** 3, maxUploadsPerDay: 100 };
+	const found = {
+		title: "Kürk Mantolu Madonna",
+		author: "Sabahattin Ali",
+		isbn: "9789750719387",
+		publisher: "Yapı Kredi Yayınları",
+		description: "Raif Efendi'nin hikâyesi.",
+		categories: ["Fiction"],
+		coverThumbnail: "https://books.google.com/books/content?id=abc&zoom=1",
+		coverSmallThumbnail: "https://books.google.com/books/content?id=abc&zoom=5",
+	};
+	const queries: unknown[] = [];
+	const lookup = async (query: unknown) => {
+		queries.push(query);
+		return found;
+	};
+
+	const enriched = await createBookWithFile(
+		db,
+		bucket,
+		reader.id,
+		pdf("Kürk Mantolu Madonna"),
+		roomy,
+		lookup,
+	);
+	assert.deepEqual(queries.at(-1), {
+		isbn: undefined,
+		name: "Kürk Mantolu Madonna",
+	});
+	assert.equal(enriched.author, "Sabahattin Ali");
+	assert.equal(enriched.publisher, "Yapı Kredi Yayınları");
+	assert.equal(enriched.isbn, "9789750719387");
+	assert.equal(enriched.description, "Raif Efendi'nin hikâyesi.");
+	assert.deepEqual(enriched.category, ["Fiction"]);
+	assert.equal(enriched.coverThumbnail, found.coverThumbnail);
+	assert.equal(enriched.coverSmallThumbnail, found.coverSmallThumbnail);
+
+	const typed = await createBookWithFile(
+		db,
+		bucket,
+		reader.id,
+		{
+			...pdf("Elle Yazılmış"),
+			author: "Elle Yazar",
+			category: "Roman",
+			isbn: "123",
+			coverThumbnail: "https://evil.test/cover.jpg",
+		},
+		roomy,
+		lookup,
+	);
+	assert.deepEqual(queries.at(-1), { isbn: "123", name: "Elle Yazılmış" });
+	assert.equal(typed.author, "Elle Yazar", "Typed author is kept");
+	assert.deepEqual(typed.category, ["Roman"], "Typed categories are kept");
+	assert.equal(typed.isbn, "123", "Typed ISBN is kept");
+	assert.equal(
+		typed.publisher,
+		"Yapı Kredi Yayınları",
+		"Empty field is filled",
+	);
+	assert.equal(
+		typed.coverThumbnail,
+		found.coverThumbnail,
+		"An unsafe cover URL from the client is dropped",
+	);
+
+	const noMatch = await createBookWithFile(
+		db,
+		bucket,
+		reader.id,
+		pdf("Bulunamayan"),
+		roomy,
+		async () => null,
+	);
+	assert.equal(noMatch.author, null, "No match leaves fields empty");
+	assert.equal(noMatch.coverThumbnail, null);
+
+	const callsBefore = queries.length;
+	const complete = await createBookWithFile(
+		db,
+		bucket,
+		reader.id,
+		{
+			...pdf("Tam"),
+			author: "A",
+			publisher: "B",
+			isbn: "C",
+			description: "D",
+			category: "E",
+			coverThumbnail: "http://books.google.com/books/content?id=z&edge=curl",
+		},
+		roomy,
+		lookup,
+	);
+	assert.equal(queries.length, callsBefore, "Complete uploads skip the lookup");
+	assert.equal(
+		complete.coverThumbnail,
+		"https://books.google.com/books/content?id=z",
+		"A Google cover from the preview is normalised and kept",
+	);
 });

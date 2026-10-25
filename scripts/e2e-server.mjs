@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { once } from "node:events";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createServer as createHttpServer } from "node:http";
 import { createServer } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,13 +11,53 @@ import { hashPassword } from "better-auth/crypto";
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 process.chdir(root);
 
-// Fail before building if another process owns the test port; never reuse a real app.
-const probe = createServer();
-probe.listen(4173, "127.0.0.1");
-await once(probe, "listening");
-await new Promise((resolve, reject) =>
-	probe.close((error) => (error ? reject(error) : resolve())),
-);
+// Fail before building if another process owns a test port; never reuse a real app.
+for (const port of [4173, 4175]) {
+	const probe = createServer();
+	probe.listen(port, "127.0.0.1");
+	await once(probe, "listening");
+	await new Promise((resolve, reject) =>
+		probe.close((error) => (error ? reject(error) : resolve())),
+	);
+}
+
+// Local stand-in for the Google Books API (GOOGLE_BOOKS_API_URL in
+// wrangler.e2e.json), so upload lookups never leave this machine.
+const stubVolume = {
+	title: "Kürk Mantolu Madonna",
+	authors: ["Sabahattin Ali"],
+	publisher: "Yapı Kredi Yayınları",
+	description: "Raif Efendi'nin Berlin'de tanıdığı Maria Puder'e duyduğu aşk.",
+	categories: ["Fiction"],
+	industryIdentifiers: [{ type: "ISBN_13", identifier: "9789750719387" }],
+	imageLinks: {
+		smallThumbnail: "http://books.google.com/books/content?id=e2e&zoom=5",
+		thumbnail: "http://books.google.com/books/content?id=e2e&zoom=1",
+	},
+};
+const booksApi = createHttpServer((request, response) => {
+	const url = new URL(request.url ?? "/", "http://127.0.0.1:4175");
+	const q = url.searchParams.get("q");
+	// Google answers 429 when its daily quota is spent; let tests see that path.
+	if (q === "Kota Doldu") {
+		response.writeHead(429, { "content-type": "application/json" });
+		response.end(JSON.stringify({ error: { code: 429 } }));
+		return;
+	}
+	const match =
+		url.pathname === "/books/v1/volumes" &&
+		(q === "isbn:9789750719387" || q === stubVolume.title);
+	response.writeHead(200, { "content-type": "application/json" });
+	response.end(
+		JSON.stringify(
+			match
+				? { totalItems: 1, items: [{ volumeInfo: stubVolume }] }
+				: { totalItems: 0 },
+		),
+	);
+});
+booksApi.listen(4175, "127.0.0.1");
+await once(booksApi, "listening");
 
 await mkdir(join(root, ".wrangler"), { recursive: true });
 const statePath = await mkdtemp(join(root, ".wrangler", "e2e-"));
@@ -63,11 +104,14 @@ delete env.E2E_ADMIN_PASSWORD;
 
 // Deterministic test-only catalog so the browse UI has something to render.
 // Covers are omitted on purpose to avoid external image requests in tests.
-const seedBooks = `INSERT INTO book (id, name, author, category, language, description) VALUES
-('seed-sefiller', 'Sefiller', 'Victor Hugo', '["Roman","Klasik"]', 'turkish', 'Klasik bir roman.'),
-('seed-suc-ve-ceza', 'Suç ve Ceza', 'Fyodor Dostoyevski', '["Roman"]', 'turkish', 'Psikolojik bir roman.'),
-('seed-1984', '1984', 'George Orwell', '["Bilim Kurgu"]', 'english', 'Distopik bir roman.'),
-('seed-tutunamayanlar', 'Tutunamayanlar', 'Oğuz Atay', '["Roman"]', 'turkish', 'Uzun, tek kelimelik bir başlık.');`;
+// Seeds are dated in 2100 so they stay first in "recently added" lists no
+// matter how many books other tests upload in parallel.
+const seededAt = Date.UTC(2100, 0, 1);
+const seedBooks = `INSERT INTO book (id, name, author, category, language, description, created_at, updated_at) VALUES
+('seed-sefiller', 'Sefiller', 'Victor Hugo', '["Roman","Klasik"]', 'turkish', 'Klasik bir roman.', ${seededAt}, ${seededAt}),
+('seed-suc-ve-ceza', 'Suç ve Ceza', 'Fyodor Dostoyevski', '["Roman"]', 'turkish', 'Psikolojik bir roman.', ${seededAt}, ${seededAt}),
+('seed-1984', '1984', 'George Orwell', '["Bilim Kurgu"]', 'english', 'Distopik bir roman.', ${seededAt}, ${seededAt}),
+('seed-tutunamayanlar', 'Tutunamayanlar', 'Oğuz Atay', '["Roman"]', 'turkish', 'Uzun, tek kelimelik bir başlık.', ${seededAt}, ${seededAt});`;
 
 let child;
 let stopping = false;
@@ -153,6 +197,7 @@ INSERT INTO account (id, account_id, provider_id, user_id, password) VALUES
 		"--strictPort",
 	]);
 } finally {
+	booksApi.close();
 	// This uniquely generated directory belongs to this run, not normal local D1.
 	await rm(statePath, { recursive: true, force: true });
 }

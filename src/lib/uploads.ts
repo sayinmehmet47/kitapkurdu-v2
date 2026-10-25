@@ -2,6 +2,11 @@ import { and, count, eq, gt, isNotNull, sum } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "#/db";
 import { book } from "#/db/schema";
+import {
+	type BookMetadata,
+	type MetadataQuery,
+	safeCoverUrl,
+} from "#/lib/book-metadata";
 
 export const uploadInput = z.object({
 	name: z.string().trim().min(1).max(200),
@@ -11,6 +16,8 @@ export const uploadInput = z.object({
 	description: z.string().trim().max(5000).optional(),
 	category: z.string().trim().max(500).optional(),
 	language: z.enum(["turkish", "english"]).default("turkish"),
+	// From the form's Google Books preview; re-checked with safeCoverUrl.
+	coverThumbnail: z.string().trim().max(2000).optional(),
 	fileName: z.string().trim().min(1).max(200),
 	fileBase64: z.string().min(1),
 });
@@ -111,6 +118,7 @@ export async function createBookWithFile(
 	userId: string,
 	input: unknown,
 	limits: UploadLimits = UPLOAD_LIMITS,
+	lookup?: (query: MetadataQuery) => Promise<BookMetadata | null>,
 ) {
 	const data = uploadInput.parse(input);
 	const bytes = decodeBase64(data.fileBase64);
@@ -127,6 +135,21 @@ export async function createBookWithFile(
 		.split(",")
 		.map((item) => item.trim())
 		.filter(Boolean);
+	const cover = safeCoverUrl(data.coverThumbnail);
+
+	// Fill only what the uploader left empty; typed values always win. A failed
+	// lookup returns null, so the upload continues without enrichment.
+	const missing =
+		!data.author ||
+		!data.publisher ||
+		!data.isbn ||
+		!data.description ||
+		category.length === 0 ||
+		!cover;
+	const found =
+		lookup && missing
+			? await lookup({ isbn: data.isbn, name: data.name })
+			: null;
 
 	// Only PDFs are stored, so force a safe content type and extension: the
 	// download route serves these inline on the application origin.
@@ -139,11 +162,13 @@ export async function createBookWithFile(
 		.insert(book)
 		.values({
 			name: data.name,
-			author: data.author || null,
-			publisher: data.publisher || null,
-			isbn: data.isbn || null,
-			description: data.description || null,
-			category,
+			author: data.author || found?.author || null,
+			publisher: data.publisher || found?.publisher || null,
+			isbn: data.isbn || found?.isbn || null,
+			description: data.description || found?.description || null,
+			category: category.length > 0 ? category : (found?.categories ?? []),
+			coverThumbnail: cover ?? found?.coverThumbnail ?? null,
+			coverSmallThumbnail: cover ? null : (found?.coverSmallThumbnail ?? null),
 			language: data.language,
 			fileUrl: key,
 			size: bytes.byteLength,

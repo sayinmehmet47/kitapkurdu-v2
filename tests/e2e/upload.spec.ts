@@ -64,3 +64,83 @@ test("an upload over the storage ceiling is refused with a message", async ({
 		page.getByRole("heading", { name: "Çok Büyük Kitap" }),
 	).toHaveCount(0);
 });
+
+test("Google Books lookup fills empty fields and the cover before upload", async ({
+	page,
+}, info) => {
+	// The E2E server answers Google Books queries from a local stub.
+	await signUp(page);
+	await page.goto("/books/new");
+	await page.getByLabel("Yazar", { exact: true }).fill("Elle Yazılan Yazar");
+	await page.getByLabel("ISBN", { exact: true }).fill("9789750719387");
+	await page.getByRole("button", { name: "Bilgileri getir" }).click();
+
+	await expect(page.getByRole("status")).toContainText(
+		"Google Books'tan dolduruldu",
+	);
+	await expect(page.getByLabel("Ad", { exact: true })).toHaveValue(
+		"Kürk Mantolu Madonna",
+	);
+	// Typed values are never overwritten.
+	await expect(page.getByLabel("Yazar", { exact: true })).toHaveValue(
+		"Elle Yazılan Yazar",
+	);
+	await expect(page.getByLabel("Yayınevi", { exact: true })).toHaveValue(
+		"Yapı Kredi Yayınları",
+	);
+	await expect(
+		page.getByLabel("Kategoriler (virgülle)", { exact: true }),
+	).toHaveValue("Fiction");
+	await expect(page.locator('[data-slot="book-cover"] img')).toHaveCount(1);
+	await capture(page, info, "metadata-filled");
+
+	await page.locator('input[type="file"]').setInputFiles({
+		name: "madonna.pdf",
+		mimeType: "application/pdf",
+		buffer: Buffer.from("%PDF-1.4\n% metadata test\n"),
+	});
+	await page.getByRole("button", { name: "Yükle" }).click();
+
+	await expect(page).toHaveURL(/\/books\/[0-9a-f-]{36}$/);
+	await expect(
+		page.getByRole("heading", { level: 1, name: "Kürk Mantolu Madonna" }),
+	).toBeVisible();
+	await expect(
+		page.getByText("Yapı Kredi Yayınları", { exact: true }),
+	).toBeVisible();
+	await expect(page.locator('[data-slot="book-cover"] img')).toHaveCount(1);
+	await capture(page, info, "metadata-book");
+});
+
+test("an upload still works when Google Books has no match", async ({
+	page,
+}) => {
+	await signUp(page);
+	await page.goto("/books/new");
+	await page.getByLabel("Ad", { exact: true }).fill("Hiç Bilinmeyen Kitap");
+	await page.getByRole("button", { name: "Bilgileri getir" }).click();
+	await expect(page.getByRole("status")).toHaveText(
+		"Google Books'ta eşleşen kitap bulunamadı.",
+	);
+	await page.locator('input[type="file"]').setInputFiles({
+		name: "bilinmeyen.pdf",
+		mimeType: "application/pdf",
+		buffer: Buffer.from("%PDF-1.4\n% no match\n"),
+	});
+	await page.getByRole("button", { name: "Yükle" }).click();
+	await expect(page).toHaveURL(/\/books\/[0-9a-f-]{36}$/);
+	await expect(
+		page.getByRole("heading", { level: 1, name: "Hiç Bilinmeyen Kitap" }),
+	).toBeVisible();
+});
+
+test("the form says when Google Books is unavailable", async ({ page }) => {
+	await signUp(page);
+	await page.goto("/books/new");
+	await page.getByLabel("Ad", { exact: true }).fill("Kota Doldu");
+	await page.getByRole("button", { name: "Bilgileri getir" }).click();
+	await expect(page.getByRole("status")).toHaveText(
+		"Google Books şu an yanıt vermiyor; formu elle doldurabilirsin.",
+	);
+	await expect(page.getByLabel("Yazar", { exact: true })).toHaveValue("");
+});
