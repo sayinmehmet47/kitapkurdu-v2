@@ -32,7 +32,7 @@ function ErrorMessages({
 			{errors.map((error) => (
 				<div
 					key={typeof error === "string" ? error : error.message}
-					className="mt-1 text-sm font-semibold text-red-600"
+					className="mt-1 text-sm font-semibold text-destructive"
 				>
 					{typeof error === "string" ? error : error.message}
 				</div>
@@ -56,7 +56,7 @@ export function TextField({
 		<div>
 			<Label
 				htmlFor={id}
-				className="mb-2 text-sm font-semibold text-[var(--sea-ink)]"
+				className="mb-2 text-sm font-semibold text-foreground"
 			>
 				{label}
 			</Label>
@@ -88,7 +88,7 @@ export function TextArea({
 		<div>
 			<Label
 				htmlFor={id}
-				className="mb-2 text-sm font-semibold text-[var(--sea-ink)]"
+				className="mb-2 text-sm font-semibold text-foreground"
 			>
 				{label}
 			</Label>
@@ -121,7 +121,7 @@ export function Select({
 		<div>
 			<Label
 				htmlFor={id}
-				className="mb-2 text-sm font-semibold text-[var(--sea-ink)]"
+				className="mb-2 text-sm font-semibold text-foreground"
 			>
 				{label}
 			</Label>
@@ -165,7 +165,7 @@ export function Slider({ label }: { label: string }) {
 		<div>
 			<Label
 				htmlFor={label}
-				className="mb-2 text-sm font-semibold text-[var(--sea-ink)]"
+				className="mb-2 text-sm font-semibold text-foreground"
 			>
 				{label}
 			</Label>

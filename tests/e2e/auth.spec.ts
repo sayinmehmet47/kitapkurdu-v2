@@ -38,7 +38,7 @@ test("signup, private todos, persistence, signout, and sign-in work together", a
 		await otherContext.close();
 	}
 
-	await page.getByRole("button", { name: "Sign out", exact: true }).click();
+	await page.getByRole("button", { name: "Çıkış yap", exact: true }).click();
 	await expect(
 		page.getByText("Sign in to create todos saved to your own account."),
 	).toBeVisible();

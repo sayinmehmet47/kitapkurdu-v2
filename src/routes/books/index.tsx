@@ -101,7 +101,7 @@ function BooksPage() {
 										className="aspect-[2/3] w-full rounded-md object-cover"
 									/>
 								) : (
-									<div className="flex aspect-[2/3] w-full items-center justify-center rounded-md bg-[var(--link-bg-hover)] text-4xl">
+									<div className="flex aspect-[2/3] w-full items-center justify-center rounded-md bg-muted text-4xl">
 										📖
 									</div>
 								)}
@@ -123,7 +123,7 @@ function BooksPage() {
 											{(item.category ?? []).map((category) => (
 												<li
 													key={category}
-													className="rounded-full bg-[var(--chip-bg)] px-2 py-0.5 text-xs"
+													className="rounded-full bg-muted px-2 py-0.5 text-xs"
 												>
 													{category}
 												</li>

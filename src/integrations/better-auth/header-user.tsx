@@ -6,21 +6,24 @@ export default function BetterAuthHeader() {
 	const { data: session, isPending } = authClient.useSession();
 
 	if (isPending) {
-		return (
-			<div className="h-8 w-8 bg-neutral-100 dark:bg-neutral-800 animate-pulse" />
-		);
+		return <div className="h-9 w-20 animate-pulse rounded-md bg-muted" />;
 	}
 
 	if (session?.user) {
 		return (
 			<div className="flex items-center gap-2">
 				{session.user.image ? (
-					<img src={session.user.image} alt="" className="h-8 w-8" />
+					<img
+						src={session.user.image}
+						alt=""
+						className="size-8 rounded-full object-cover"
+					/>
 				) : (
-					<div className="h-8 w-8 bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center">
-						<span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">
-							{session.user.name?.charAt(0).toUpperCase() || "U"}
-						</span>
+					<div
+						aria-hidden="true"
+						className="flex size-8 items-center justify-center rounded-full bg-accent font-serif text-sm font-semibold text-accent-foreground"
+					>
+						{session.user.name?.charAt(0).toLocaleUpperCase("tr") || "K"}
 					</div>
 				)}
 				<button
@@ -29,9 +32,9 @@ export default function BetterAuthHeader() {
 						const result = await authClient.signOut();
 						if (!result.error) await router.invalidate();
 					}}
-					className="flex-1 h-9 px-4 text-sm font-medium bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+					className="h-9 rounded-md px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
 				>
-					Sign out
+					Çıkış yap
 				</button>
 			</div>
 		);
@@ -40,9 +43,9 @@ export default function BetterAuthHeader() {
 	return (
 		<Link
 			to="/demo/better-auth"
-			className="h-9 px-4 text-sm font-medium bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors inline-flex items-center"
+			className="inline-flex h-9 items-center rounded-md border border-input px-3.5 text-sm font-medium text-foreground no-underline transition-colors hover:bg-muted"
 		>
-			Sign in
+			Giriş yap
 		</Link>
 	);
 }
