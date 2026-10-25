@@ -245,3 +245,74 @@ test("cover URLs are limited to https source image hosts", () => {
 		assert.equal(safeCoverUrl(unsafe), undefined, String(unsafe));
 	}
 });
+
+test("title-only records are skipped in favour of the richest match", async () => {
+	// Google's first hit can carry nothing but the title the user already typed.
+	const richer = stub({
+		google: [
+			{
+				body: {
+					items: [
+						{ volumeInfo: { title: "Kürk Mantolu Madonna" } },
+						{
+							volumeInfo: {
+								title: "Kürk Mantolu Madonna",
+								authors: ["Sabahattin Ali"],
+							},
+						},
+						{ volumeInfo: volume },
+					],
+				},
+			},
+		],
+	});
+	const result = await lookupBookMetadata(
+		{ name: "Kürk Mantolu Madonna" },
+		richer.config,
+	);
+	const metadata = result.status === "found" ? result.metadata : null;
+	assert.equal(
+		metadata?.publisher,
+		"Yapı Kredi Yayınları",
+		"The richest volume wins",
+	);
+
+	// Only title-only records at Google: fall back to Open Library.
+	const sparse = stub({
+		google: [
+			{ body: { items: [{ volumeInfo: { title: "Kürk Mantolu Madonna" } }] } },
+		],
+		openLibrary: [
+			{
+				body: {
+					docs: [
+						{ title: "Kürk Mantolu Madonna" },
+						{
+							title: "Kürk Mantolu Madonna",
+							author_name: ["Sabahattin Ali"],
+							cover_i: 7,
+						},
+					],
+				},
+			},
+		],
+	});
+	const fallback = await lookupBookMetadata(
+		{ name: "Kürk Mantolu Madonna" },
+		sparse.config,
+	);
+	assert.equal(fallback.status === "found" && fallback.source, "openlibrary");
+	assert.equal(
+		fallback.status === "found" ? fallback.metadata.author : null,
+		"Sabahattin Ali",
+	);
+
+	// Nothing beyond titles anywhere: report no match rather than an empty fill.
+	const titlesOnly = stub({
+		google: [{ body: { items: [{ volumeInfo: { title: "X" } }] } }],
+		openLibrary: [{ body: { docs: [{ title: "X" }] } }],
+	});
+	assert.deepEqual(await lookupBookMetadata({ name: "X" }, titlesOnly.config), {
+		status: "not-found",
+	});
+});

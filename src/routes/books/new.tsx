@@ -184,7 +184,7 @@ function UploadPage() {
 			setLookupStatus(
 				filled.length > 0
 					? `${SOURCE_NAMES[result.source]} kaynağından dolduruldu: ${filled.join(", ")}. Kaydetmeden önce kontrol et.`
-					: "Alanlar zaten dolu; hiçbir şey değiştirilmedi.",
+					: `${SOURCE_NAMES[result.source]} kaydında boş alanlara eklenecek yeni bilgi yok.`,
 			);
 		} catch {
 			setLookupStatus(
