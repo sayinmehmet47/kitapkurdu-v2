@@ -1,20 +1,11 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import {
-	type BookFileFormat,
-	MAX_BOOK_FILE_BYTES,
-} from "#/lib/book-file-format";
+import { MAX_BOOK_FILE_BYTES } from "#/lib/book-file-format";
 
-// Reader engines are only fetched on the preview page, never on the catalog.
+// The PDF engine is only fetched on the reading page, never on the catalog.
+// EPUBs use the reader frame instead (src/components/reader/EpubReader.tsx).
 const PdfPreview = lazy(() => import("./PdfPreview"));
-const EpubPreview = lazy(() => import("./EpubPreview"));
 
-export function BookPreview({
-	id,
-	format,
-}: {
-	id: string;
-	format: BookFileFormat;
-}) {
+export function BookPreview({ id }: { id: string }) {
 	const [bytes, setBytes] = useState<Uint8Array | null>(null);
 	const [error, setError] = useState("");
 	useEffect(() => {
@@ -62,11 +53,7 @@ export function BookPreview({
 				</output>
 			}
 		>
-			{format === "epub" ? (
-				<EpubPreview bytes={bytes} />
-			) : (
-				<PdfPreview bytes={bytes} />
-			)}
+			<PdfPreview bytes={bytes} />
 		</Suspense>
 	);
 }

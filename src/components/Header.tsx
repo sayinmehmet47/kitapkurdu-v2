@@ -9,9 +9,15 @@ const navLink =
 export default function Header() {
 	const navigate = useNavigate();
 	// Home and the catalog have their own search field; avoid two on one page.
+	const reading = useRouterState({
+		select: (state) => state.location.pathname.startsWith("/read/"),
+	});
 	const hasPageSearch = useRouterState({
 		select: (state) => /^\/(books\/?)?$/.test(state.location.pathname),
 	});
+
+	// The reader is full screen; it has its own toolbar.
+	if (reading) return null;
 
 	return (
 		<header className="border-b border-border bg-background">

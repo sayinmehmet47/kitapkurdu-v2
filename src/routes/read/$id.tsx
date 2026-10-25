@@ -1,8 +1,10 @@
 import { env } from "cloudflare:workers";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
+import { ArrowLeft, Download } from "lucide-react";
 import { z } from "zod";
 import { BookPreview } from "#/components/books/BookPreview";
+import { EpubReader } from "#/components/reader/EpubReader";
 import { buttonVariants } from "#/components/ui/button";
 import { createDb } from "#/db";
 import { storedBookFormat } from "#/lib/book-file-format";
@@ -18,49 +20,68 @@ const getPreview = createServerFn({ method: "GET" })
 
 export const Route = createFileRoute("/read/$id")({
 	loader: ({ params }) => getPreview({ data: { id: params.id } }),
-	component: PreviewPage,
+	head: ({ loaderData }) => ({
+		meta: [
+			{ title: loaderData ? `${loaderData.name} · KitapKurdu` : "KitapKurdu" },
+		],
+	}),
+	component: ReadPage,
 });
 
-function PreviewPage() {
+function ReadPage() {
 	const item = Route.useLoaderData();
 	const { id } = Route.useParams();
+
+	if (!item) {
+		return (
+			<main className="page-wrap py-24 text-center">
+				<h1 className="text-3xl font-semibold">Kitap açılamadı</h1>
+				<p className="mt-3 text-muted-foreground">
+					Bu kitabın dosyası yok, kaldırılmış veya biçimi desteklenmiyor.
+				</p>
+				<Link
+					to="/books/$id"
+					params={{ id }}
+					className={buttonVariants({ variant: "outline", className: "mt-8" })}
+				>
+					← Kitap detayına dön
+				</Link>
+			</main>
+		);
+	}
+
+	if (item.format === "epub") {
+		return <EpubReader key={item.id} id={item.id} title={item.name} />;
+	}
+
+	// PDF: pdf.js pages inside the same full-screen frame.
 	return (
-		<main className="page-wrap min-h-[60vh] pt-8 pb-8 sm:pt-10">
-			<Link
-				to="/books/$id"
-				params={{ id }}
-				className="text-sm text-muted-foreground"
-			>
-				← Kitap detayına dön
-			</Link>
-			{item ? (
-				<>
-					<header className="my-7 flex flex-wrap items-end justify-between gap-5 border-b border-border pb-6">
-						<div className="min-w-0">
-							<p className="mb-2 text-sm text-primary">
-								{item.format.toUpperCase()} önizlemesi
-							</p>
-							<h1 className="break-words text-3xl font-semibold sm:text-4xl">
-								{item.name}
-							</h1>
-						</div>
-						<a
-							href={`/api/books/${encodeURIComponent(id)}/download?download=1`}
-							className={buttonVariants({ variant: "outline" })}
-						>
-							Dosyayı indir
-						</a>
-					</header>
-					<BookPreview key={item.id} id={item.id} format={item.format} />
-				</>
-			) : (
-				<section className="py-20 text-center">
-					<h1 className="text-3xl font-semibold">Önizleme bulunamadı</h1>
-					<p className="mt-3 text-muted-foreground">
-						Bu kitabın dosyası yok, kaldırılmış veya biçimi desteklenmiyor.
-					</p>
-				</section>
-			)}
+		<main className="fixed inset-0 flex flex-col bg-background">
+			<header className="flex h-14 shrink-0 items-center gap-1 border-b border-border px-2">
+				<Link
+					to="/books/$id"
+					params={{ id }}
+					aria-label="Kitaba dön"
+					className={buttonVariants({ variant: "ghost", size: "icon" })}
+				>
+					<ArrowLeft className="size-5" />
+				</Link>
+				<h1 className="min-w-0 flex-1 truncate text-center font-serif text-base font-semibold">
+					{item.name}
+				</h1>
+				<a
+					href={`/api/books/${encodeURIComponent(id)}/download?download=1`}
+					aria-label="Dosyayı indir"
+					className={buttonVariants({ variant: "ghost", size: "icon" })}
+				>
+					<Download className="size-5" />
+				</a>
+			</header>
+			<div className="min-h-0 flex-1 overflow-y-auto px-4 py-6">
+				<div className="mx-auto max-w-3xl">
+					<BookPreview key={item.id} id={item.id} />
+				</div>
+			</div>
 		</main>
 	);
 }
