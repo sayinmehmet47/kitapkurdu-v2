@@ -9,6 +9,7 @@
 		"ignoreUnknown": false,
 		"includes": [
 			"src/**",
+			"public/reader/**",
 			"tests/**/*.ts",
 			"scripts/**/*.mjs",
 			"playwright.config.ts",

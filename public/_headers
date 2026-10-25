@@ -1,0 +1,12 @@
+# Cloudflare Workers static-asset headers.
+# The EPUB reader frame renders untrusted book content with foliate-js, whose
+# iframes need allow-scripts (WebKit bug 218086). This CSP is what keeps book
+# scripts from running: only this app's own scripts may execute, and nothing
+# may load from outside this origin. Blob documents inherit this policy.
+/reader/*
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' blob:; img-src 'self' blob: data:; font-src 'self' blob: data:; media-src blob:; connect-src 'self' blob:; frame-src 'self' blob:; child-src 'self' blob:; worker-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+
+/vendor/foliate-js/*
+  X-Content-Type-Options: nosniff

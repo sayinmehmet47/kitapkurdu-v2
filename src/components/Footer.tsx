@@ -1,7 +1,11 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 
 export default function Footer() {
 	const year = new Date().getFullYear();
+	const reading = useRouterState({
+		select: (state) => state.location.pathname.startsWith("/read/"),
+	});
+	if (reading) return null;
 
 	return (
 		<footer className="mt-24 border-t border-border">

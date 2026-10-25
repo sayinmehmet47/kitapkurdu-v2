@@ -56,3 +56,28 @@ export function sampleEpub(
 	}
 	return zipSync(archive);
 }
+
+// A small but readable EPUB: navigation document, three long chapters, and an
+// in-book image, so pagination, the table of contents and images all matter.
+export function readerEpub() {
+	const sentence =
+		"Okumak, sabırla açılan bir kapı gibidir; her sayfa bir sonrakine yol gösterir. ";
+	const chapter = (title: string) =>
+		`<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml" lang="tr"><head><title>${title}</title></head><body><h1>${title}</h1>${Array.from(
+			{ length: 14 },
+			(_, index) => `<p>${sentence.repeat(6)}${title} ${index + 1}.</p>`,
+		).join("")}</body></html>`;
+	return sampleEpub({
+		"EPUB/package.opf": `<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id">
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="id">synthetic-reader</dc:identifier><dc:title>Okuma Denemesi</dc:title><dc:language>tr</dc:language></metadata>
+<manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/><item id="cover" href="cover.xhtml" media-type="application/xhtml+xml"/><item id="art" href="art.svg" media-type="image/svg+xml"/><item id="one" href="one.xhtml" media-type="application/xhtml+xml"/><item id="two" href="two.xhtml" media-type="application/xhtml+xml"/><item id="three" href="three.xhtml" media-type="application/xhtml+xml"/></manifest>
+<spine><itemref idref="cover"/><itemref idref="one"/><itemref idref="two"/><itemref idref="three"/></spine></package>`,
+		"EPUB/nav.xhtml": `<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>İçindekiler</title></head><body><nav epub:type="toc"><ol><li><a href="one.xhtml">Birinci bölüm</a></li><li><a href="two.xhtml">İkinci bölüm</a></li><li><a href="three.xhtml">Üçüncü bölüm</a></li></ol></nav></body></html>`,
+		"EPUB/cover.xhtml": `<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>Kapak</title></head><body><img src="art.svg" alt="Kapak resmi"/></body></html>`,
+		"EPUB/art.svg": `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="450"><rect width="300" height="450" fill="#1f4935"/><text x="40" y="225" fill="#f6f1e7" font-size="32">Okuma</text></svg>`,
+		"EPUB/one.xhtml": chapter("Birinci bölüm"),
+		"EPUB/two.xhtml": chapter("İkinci bölüm"),
+		"EPUB/three.xhtml": chapter("Üçüncü bölüm"),
+	});
+}
