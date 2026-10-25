@@ -6,6 +6,12 @@ import {
 	unzipSync,
 } from "fflate";
 import { SaxesParser } from "saxes";
+import {
+	type CoverType,
+	detectCoverType,
+	MAX_COVER_BYTES,
+} from "#/lib/cover-image";
+import { normalizeIsbn } from "#/lib/isbn";
 
 // Preview is deliberately bounded, not a general-purpose archive extractor.
 export const EPUB_LIMITS = {
@@ -27,11 +33,20 @@ type XmlNode = {
 	name: string;
 	attributes: Record<string, string>;
 	children: XmlNode[];
+	/** Direct text content, capped (metadata values, not chapter text). */
+	text: string;
 };
+
+const MAX_NODE_TEXT = 20_000;
 
 function parseXml(xml: string) {
 	const parser = new SaxesParser({ xmlns: true });
-	const document: XmlNode = { name: "document", attributes: {}, children: [] };
+	const document: XmlNode = {
+		name: "document",
+		attributes: {},
+		children: [],
+		text: "",
+	};
 	const stack = [document];
 	let count = 0;
 	parser.on("doctype", () => {
@@ -48,12 +63,18 @@ function parseXml(xml: string) {
 				Object.values(tag.attributes).map((attr) => [attr.name, attr.value]),
 			),
 			children: [],
+			text: "",
 		};
 		stack[stack.length - 1].children.push(node);
 		stack.push(node);
 	});
 	parser.on("closetag", () => {
 		stack.pop();
+	});
+	parser.on("text", (text) => {
+		const node = stack[stack.length - 1];
+		if (node.text.length < MAX_NODE_TEXT)
+			node.text = (node.text + text).slice(0, MAX_NODE_TEXT);
 	});
 	parser.write(xml).close();
 	return document.children[0];
@@ -140,7 +161,7 @@ function archiveIndex(bytes: Uint8Array) {
 	return entries;
 }
 
-function extractText(
+function extractBytes(
 	bytes: Uint8Array,
 	entries: Map<string, UnzipFileInfo>,
 	path: string,
@@ -180,39 +201,48 @@ function extractText(
 		result.set(chunk, offset);
 		offset += chunk.length;
 	}
-	return strFromU8(result);
+	return result;
+}
+
+function extractText(
+	bytes: Uint8Array,
+	entries: Map<string, UnzipFileInfo>,
+	path: string,
+	maxBytes: number,
+) {
+	return strFromU8(extractBytes(bytes, entries, path, maxBytes));
+}
+
+function openPackage(bytes: Uint8Array) {
+	const entries = archiveIndex(bytes);
+	if (extractText(bytes, entries, "mimetype", 20) !== "application/epub+zip")
+		throw new EpubError();
+	const container = parseXml(
+		extractText(bytes, entries, "META-INF/container.xml", EPUB_LIMITS.xmlBytes),
+	);
+	if (container?.name !== "container") throw new EpubError();
+	const rootfiles = container.children.find(
+		(node) => node.name === "rootfiles",
+	);
+	const rootfile = rootfiles?.children.find(
+		(node) =>
+			node.name === "rootfile" &&
+			node.attributes["media-type"] === "application/oebps-package+xml",
+	);
+	const packagePath = resolveEpubPath(
+		"",
+		rootfile?.attributes["full-path"] ?? "",
+	);
+	const pkg = parseXml(
+		extractText(bytes, entries, packagePath, EPUB_LIMITS.xmlBytes),
+	);
+	if (pkg?.name !== "package") throw new EpubError();
+	return { entries, packagePath, pkg };
 }
 
 export function inspectEpub(bytes: Uint8Array): EpubPackage {
 	try {
-		const entries = archiveIndex(bytes);
-		if (extractText(bytes, entries, "mimetype", 20) !== "application/epub+zip")
-			throw new EpubError();
-		const container = parseXml(
-			extractText(
-				bytes,
-				entries,
-				"META-INF/container.xml",
-				EPUB_LIMITS.xmlBytes,
-			),
-		);
-		if (container?.name !== "container") throw new EpubError();
-		const rootfiles = container.children.find(
-			(node) => node.name === "rootfiles",
-		);
-		const rootfile = rootfiles?.children.find(
-			(node) =>
-				node.name === "rootfile" &&
-				node.attributes["media-type"] === "application/oebps-package+xml",
-		);
-		const packagePath = resolveEpubPath(
-			"",
-			rootfile?.attributes["full-path"] ?? "",
-		);
-		const pkg = parseXml(
-			extractText(bytes, entries, packagePath, EPUB_LIMITS.xmlBytes),
-		);
-		if (pkg?.name !== "package") throw new EpubError();
+		const { entries, packagePath, pkg } = openPackage(bytes);
 		const manifest = pkg.children.find((node) => node.name === "manifest");
 		const spine = pkg.children.find((node) => node.name === "spine");
 		if (!manifest || !spine) throw new EpubError();
@@ -247,4 +277,119 @@ export function readEpubChapter(bytes: Uint8Array, chapter: EpubChapter) {
 		chapter.path,
 		EPUB_LIMITS.chapterBytes,
 	);
+}
+
+export type EpubMetadata = {
+	title?: string;
+	author?: string;
+	publisher?: string;
+	language?: "turkish" | "english";
+	isbn?: string;
+	description?: string;
+	categories?: string[];
+	cover?: { bytes: Uint8Array; type: CoverType };
+};
+
+const clean = (value: string | undefined, max = 500) => {
+	const text = (value ?? "").replace(/\s+/g, " ").trim();
+	return text ? text.slice(0, max) : undefined;
+};
+
+/**
+ * Book details from the EPUB's own package document, including its cover
+ * image. Never throws: an unreadable EPUB simply yields no details.
+ */
+export function readEpubMetadata(bytes: Uint8Array): EpubMetadata {
+	try {
+		const { entries, packagePath, pkg } = openPackage(bytes);
+		const metadata = pkg.children.find((node) => node.name === "metadata");
+		const manifest = pkg.children.find((node) => node.name === "manifest");
+		const fields = (name: string) =>
+			(metadata?.children ?? []).filter((node) => node.name === name);
+		const first = (name: string) => clean(fields(name)[0]?.text);
+
+		const authors = fields("creator")
+			.filter((node) => {
+				const role = node.attributes.role ?? node.attributes["opf:role"];
+				return !role || role === "aut";
+			})
+			.map((node) => clean(node.text))
+			.filter(Boolean);
+		const identifiers = fields("identifier").map((node) => node.text);
+		const isbn = identifiers.map(normalizeIsbn).find(Boolean);
+		const language = first("language")?.toLowerCase();
+		// Descriptions often carry escaped HTML; keep only the text.
+		const subjects = fields("subject")
+			.map((node) => clean(node.text.replace(/<[^>]*>/g, " "), 5000))
+			.filter((value): value is string => Boolean(value));
+		// Some EPUBs put the blurb in <dc:subject>: a sentence is not a category,
+		// but it makes a good description when there is none.
+		const isCategory = (subject: string) =>
+			subject.length <= 40 &&
+			subject.split(" ").length <= 5 &&
+			!/[.;!?]/.test(subject);
+		const description = clean(
+			fields("description")[0]?.text.replace(/<[^>]*>/g, " ") ??
+				subjects.find((subject) => subject.length >= 80),
+			5000,
+		);
+		const categories = [...new Set(subjects.filter(isCategory))].slice(0, 5);
+
+		return {
+			title: first("title"),
+			author: authors.length > 0 ? authors.join(", ") : undefined,
+			publisher: first("publisher"),
+			language: language?.startsWith("tr")
+				? "turkish"
+				: language?.startsWith("en")
+					? "english"
+					: undefined,
+			isbn,
+			description,
+			categories: categories.length > 0 ? categories : undefined,
+			cover: readCover(bytes, entries, packagePath, metadata, manifest),
+		};
+	} catch {
+		return {};
+	}
+}
+
+function readCover(
+	bytes: Uint8Array,
+	entries: Map<string, UnzipFileInfo>,
+	packagePath: string,
+	metadata: XmlNode | undefined,
+	manifest: XmlNode | undefined,
+) {
+	const items = (manifest?.children ?? []).filter(
+		(node) => node.name === "item",
+	);
+	// EPUB 3 marks the cover in the manifest; EPUB 2 points at it from metadata.
+	const coverId = metadata?.children.find(
+		(node) => node.name === "meta" && node.attributes.name === "cover",
+	)?.attributes.content;
+	const isImage = (node: XmlNode) =>
+		(node.attributes["media-type"] ?? "").startsWith("image/");
+	const item =
+		items.find((node) =>
+			(node.attributes.properties ?? "").split(/\s+/).includes("cover-image"),
+		) ??
+		items.find((node) => coverId && node.attributes.id === coverId) ??
+		// Many tools (e.g. Sigil) only name it: id="cover.jpg", Images/cover.jpg.
+		items.find(
+			(node) =>
+				isImage(node) &&
+				/cover/i.test(
+					`${node.attributes.id ?? ""} ${(node.attributes.href ?? "").split("/").pop()}`,
+				),
+		);
+	if (!item?.attributes.href) return undefined;
+	try {
+		const path = resolveEpubPath(packagePath, item.attributes.href);
+		const image = extractBytes(bytes, entries, path, MAX_COVER_BYTES);
+		const type = detectCoverType(image);
+		return type ? { bytes: image, type } : undefined;
+	} catch {
+		return undefined;
+	}
 }

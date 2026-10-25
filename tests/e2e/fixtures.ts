@@ -6,9 +6,7 @@ import {
 	type Page,
 	type TestInfo,
 } from "@playwright/test";
-
-const TEST_COVER_PNG =
-	"iVBORw0KGgoAAAANSUhEUgAAABQAAAAeCAIAAACjcKk8AAAAHklEQVR4nGPQ98ojGzGMah7VPKp5VPOo5lHNw1kzAP+IHYdrq1oDAAAAAElFTkSuQmCC";
+import { coverPng } from "../fixtures/book-files";
 
 export async function guardLocalNetwork(context: BrowserContext) {
 	await context.route("**/*", async (route) => {
@@ -30,7 +28,7 @@ export async function guardLocalNetwork(context: BrowserContext) {
 			await route.fulfill({
 				status: 200,
 				contentType: "image/png",
-				body: Buffer.from(TEST_COVER_PNG, "base64"),
+				body: Buffer.from(coverPng()),
 			});
 		} else {
 			await route.abort("blockedbyclient");

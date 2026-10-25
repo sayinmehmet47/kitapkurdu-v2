@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import { BookCover } from "#/components/books/BookCover";
 import { Button } from "#/components/ui/button";
@@ -124,12 +124,22 @@ function UploadPage() {
 	const [category, setCategory] = useState("");
 	const [language, setLanguage] = useState<"turkish" | "english">("turkish");
 	const [file, setFile] = useState<File | null>(null);
+	// A looked-up cover URL, and a preview of the cover inside the chosen file.
 	const [cover, setCover] = useState<string | null>(null);
+	const [fileCover, setFileCover] = useState<string | null>(null);
 	// Once removed, a suggested cover is not offered or added again.
 	const [coverRemoved, setCoverRemoved] = useState(false);
+	const [reading, setReading] = useState(false);
 	const [looking, setLooking] = useState(false);
 	const [lookupStatus, setLookupStatus] = useState(
-		"ISBN ya da adı yazıp kitap bilgilerini otomatik getirebilirsin.",
+		"Dosyayı seçtiğinde ad, yazar ve kapak kendiliğinden doldurulur.",
+	);
+
+	useEffect(
+		() => () => {
+			if (fileCover) URL.revokeObjectURL(fileCover);
+		},
+		[fileCover],
 	);
 	const [error, setError] = useState<string | null>(null);
 	const [submitting, setSubmitting] = useState(false);
@@ -151,56 +161,166 @@ function UploadPage() {
 		);
 	}
 
+	type Fields = {
+		name: string;
+		author: string;
+		publisher: string;
+		isbn: string;
+		description: string;
+		category: string;
+	};
+	const setters: Record<keyof Fields, (value: string) => void> = {
+		name: setName,
+		author: setAuthor,
+		publisher: setPublisher,
+		isbn: setIsbn,
+		description: setDescription,
+		category: setCategory,
+	};
+	const labels: Record<keyof Fields, string> = {
+		name: "ad",
+		author: "yazar",
+		publisher: "yayınevi",
+		isbn: "ISBN",
+		description: "açıklama",
+		category: "kategoriler",
+	};
 	// Fill only empty fields, so nothing the uploader typed is overwritten.
-	const handleLookup = async () => {
+	const fillEmpty = (
+		fields: Fields,
+		found: Partial<Record<keyof Fields, string | undefined>>,
+	) => {
+		const filled: string[] = [];
+		for (const key of Object.keys(setters) as (keyof Fields)[]) {
+			const next = found[key]?.trim();
+			if (!fields[key].trim() && next) {
+				fields[key] = next;
+				setters[key](next);
+				filled.push(labels[key]);
+			}
+		}
+		return filled;
+	};
+
+	// Search Google Books / Open Library and fill what is still empty.
+	const lookupAndFill = async (
+		fields: Fields,
+		hasCover: boolean,
+		prefix: string,
+		{ always = false } = {},
+	) => {
+		const say = (message: string) =>
+			setLookupStatus([prefix, message].filter(Boolean).join(" "));
+		const complete =
+			(Object.keys(fields) as (keyof Fields)[]).every((key) =>
+				fields[key].trim(),
+			) &&
+			(hasCover || coverRemoved);
+		// After a file is read, skip the search if nothing is missing; the
+		// button always searches.
+		if (complete && !always) return say("Kaydetmeden önce kontrol et.");
+		if (!fields.isbn.trim() && !fields.name.trim())
+			return say("ISBN ya da adı yazıp bilgileri getirebilirsin.");
 		setLooking(true);
 		try {
-			const result = await lookupMetadata({ data: { isbn, name, author } });
-			if (result.status === "unavailable") {
-				setLookupStatus(
-					"Kitap bilgileri şu an getirilemiyor; formu elle doldurabilirsin.",
+			const result = await lookupMetadata({
+				data: {
+					isbn: fields.isbn,
+					name: fields.name,
+					author: fields.author,
+				},
+			});
+			if (result.status === "unavailable")
+				return say(
+					"Çevrimiçi kitap bilgileri şu an getirilemiyor; formu elle tamamlayabilirsin.",
 				);
-				return;
-			}
-			if (result.status === "not-found") {
-				setLookupStatus("Eşleşen kitap bulunamadı.");
-				return;
-			}
+			if (result.status === "not-found")
+				return say("Çevrimiçi eşleşen kitap bulunamadı.");
 			const found = result.metadata;
-			const filled: string[] = [];
-			const fill = (
-				current: string,
-				next: string | undefined,
-				set: (value: string) => void,
-				label: string,
-			) => {
-				if (!current.trim() && next) {
-					set(next);
-					filled.push(label);
-				}
-			};
-			fill(name, found.title, setName, "ad");
-			fill(author, found.author, setAuthor, "yazar");
-			fill(publisher, found.publisher, setPublisher, "yayınevi");
-			fill(isbn, found.isbn, setIsbn, "ISBN");
-			fill(description, found.description, setDescription, "açıklama");
-			fill(category, found.categories?.join(", "), setCategory, "kategoriler");
-			if (!cover && !coverRemoved && found.coverThumbnail) {
+			const filled = fillEmpty(fields, {
+				name: found.title,
+				author: found.author,
+				publisher: found.publisher,
+				isbn: found.isbn,
+				description: found.description,
+				category: found.categories?.join(", "),
+			});
+			if (!hasCover && !coverRemoved && found.coverThumbnail) {
 				setCover(found.coverThumbnail);
 				filled.push("kapak");
 			}
-			setLookupStatus(
+			const source = SOURCE_NAMES[result.source];
+			say(
 				filled.length > 0
-					? `${SOURCE_NAMES[result.source]} kaynağından dolduruldu: ${filled.join(", ")}. Kaydetmeden önce kontrol et.`
-					: `${SOURCE_NAMES[result.source]} kaydında boş alanlara eklenecek yeni bilgi yok.`,
+					? `${source} kaynağından ${prefix ? "tamamlandı" : "dolduruldu"}: ${filled.join(", ")}. Kaydetmeden önce kontrol et.`
+					: `${source} kaydında boş alanlara eklenecek yeni bilgi yok.`,
 			);
 		} catch {
-			setLookupStatus(
-				"Bilgiler şu an getirilemedi; formu elle doldurabilirsin.",
+			say(
+				"Çevrimiçi bilgiler şu an getirilemedi; formu elle tamamlayabilirsin.",
 			);
 		} finally {
 			setLooking(false);
 		}
+	};
+
+	const currentFields = (): Fields => ({
+		name,
+		author,
+		publisher,
+		isbn,
+		description,
+		category,
+	});
+
+	const handleLookup = () =>
+		lookupAndFill(currentFields(), Boolean(fileCover || cover), "", {
+			always: true,
+		});
+
+	// Choosing a file reads its own details first, then completes online.
+	const handleFile = async (next: File | null) => {
+		setFile(next);
+		setError(null);
+		if (!next) return;
+		setReading(true);
+		const fields = currentFields();
+		let filled: string[] = [];
+		let hasCover = Boolean(fileCover || cover);
+		try {
+			const { readFileMetadata } = await import("#/lib/book-file-metadata");
+			const metadata = await readFileMetadata(next);
+			filled = fillEmpty(fields, {
+				name: metadata.title,
+				author: metadata.author,
+				publisher: metadata.publisher,
+				isbn: metadata.isbn,
+				description: metadata.description,
+				category: metadata.categories?.join(", "),
+			});
+			if (metadata.language) setLanguage(metadata.language);
+			if (metadata.cover && !coverRemoved) {
+				setCover(null);
+				setFileCover(
+					URL.createObjectURL(
+						new Blob([metadata.cover.bytes.slice()], {
+							type: metadata.cover.type,
+						}),
+					),
+				);
+				filled.push("kapak");
+				hasCover = true;
+			}
+		} catch {
+			// Reading the file is a convenience; the online lookup still runs.
+		} finally {
+			setReading(false);
+		}
+		await lookupAndFill(
+			fields,
+			hasCover,
+			filled.length > 0 ? `Dosyadan okundu: ${filled.join(", ")}.` : "",
+		);
 	};
 
 	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -259,6 +379,16 @@ function UploadPage() {
 				</h1>
 
 				<form onSubmit={handleSubmit} className="mt-8 space-y-4">
+					<div className="space-y-1.5">
+						<Label htmlFor="file">PDF veya EPUB dosyası (en fazla 25 MB)</Label>
+						<Input
+							id="file"
+							type="file"
+							accept={BOOK_FILE_ACCEPT}
+							onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
+						/>
+					</div>
+
 					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 						<div className="space-y-1.5">
 							<Label htmlFor="name">Ad</Label>
@@ -318,34 +448,37 @@ function UploadPage() {
 					</div>
 
 					<div className="flex items-start gap-4 rounded-md border border-dashed border-border p-4">
-						{cover ? (
+						{fileCover || cover ? (
 							<BookCover
 								name={name}
 								author={author}
-								src={cover}
+								src={fileCover ?? cover}
 								priority
 								className="w-16 shrink-0"
 							/>
 						) : null}
 						<div className="grid gap-3">
 							<output className="block text-sm text-muted-foreground">
-								{lookupStatus}
+								{reading ? "Dosya okunuyor…" : lookupStatus}
 							</output>
 							<div className="flex flex-wrap gap-2">
 								<Button
 									type="button"
 									variant="outline"
 									onClick={handleLookup}
-									disabled={looking || (!isbn.trim() && !name.trim())}
+									disabled={
+										reading || looking || (!isbn.trim() && !name.trim())
+									}
 								>
 									{looking ? "Aranıyor…" : "Bilgileri getir"}
 								</Button>
-								{cover ? (
+								{fileCover || cover ? (
 									<Button
 										type="button"
 										variant="ghost"
 										onClick={() => {
 											setCover(null);
+											setFileCover(null);
 											setCoverRemoved(true);
 										}}
 									>
@@ -366,24 +499,18 @@ function UploadPage() {
 						/>
 					</div>
 
-					<div className="space-y-1.5">
-						<Label htmlFor="file">PDF veya EPUB dosyası (en fazla 25 MB)</Label>
-						<Input
-							id="file"
-							type="file"
-							accept={BOOK_FILE_ACCEPT}
-							onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-						/>
-					</div>
-
 					{error ? (
 						<p role="alert" className="text-sm text-destructive">
 							{error}
 						</p>
 					) : null}
 
-					<Button type="submit" disabled={submitting}>
-						{submitting ? "Yükleniyor…" : "Yükle"}
+					<Button type="submit" disabled={submitting || reading || looking}>
+						{submitting
+							? "Yükleniyor…"
+							: reading || looking
+								? "Bilgiler hazırlanıyor…"
+								: "Yükle"}
 					</Button>
 				</form>
 			</section>

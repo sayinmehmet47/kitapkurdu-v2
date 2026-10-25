@@ -13,7 +13,7 @@ import {
 	uploadInput,
 	uploadLimitsFor,
 } from "../src/lib/uploads";
-import { sampleEpub } from "./fixtures/book-files";
+import { coverPng, metadataEpub, sampleEpub } from "./fixtures/book-files";
 
 test("book uploads store the file in R2 and the metadata in D1", {
 	timeout: 60_000,
@@ -326,6 +326,59 @@ test("book uploads store the file in R2 and the metadata in D1", {
 		complete.coverThumbnail,
 		"https://books.google.com/books/content?id=z",
 		"A Google cover from the preview is normalised and kept",
+	);
+
+	await t.test(
+		"an EPUB's own details and cover fill what the uploader left empty",
+		async () => {
+			const epub = (overrides: Record<string, unknown> = {}) => ({
+				name: "Kürk Mantolu Madonna",
+				fileName: "madonna.epub",
+				fileBase64: Buffer.from(metadataEpub()).toString("base64"),
+				...overrides,
+			});
+			const fromFile = await createBookWithFile(
+				db,
+				bucket,
+				reader.id,
+				epub({ author: "Elle Yazılan" }),
+				roomy,
+			);
+			assert.equal(fromFile.author, "Elle Yazılan", "Typed values win");
+			assert.equal(fromFile.publisher, "Yapı Kredi Yayınları");
+			assert.equal(fromFile.isbn, "9789750719387");
+			assert.equal(fromFile.description, "Raif Efendi'nin hikâyesi.");
+			assert.deepEqual(fromFile.category, ["Roman", "Türk Edebiyatı"]);
+			// The embedded cover is stored next to the book and served by the app.
+			assert.equal(fromFile.coverThumbnail, `/api/books/${fromFile.id}/cover`);
+			assert.equal(fromFile.coverSmallThumbnail, null);
+			const cover = await bucket.get(`covers/${fromFile.id}`);
+			assert.ok(cover, "The embedded cover is stored in R2");
+			assert.equal(cover.httpMetadata?.contentType, "image/png");
+			assert.deepEqual(new Uint8Array(await cover.arrayBuffer()), coverPng());
+
+			// The embedded cover beats a looked-up one; removing it stores nothing.
+			const withLookup = await createBookWithFile(
+				db,
+				bucket,
+				reader.id,
+				epub({ coverThumbnail: "https://books.google.com/books/content?id=q" }),
+				roomy,
+			);
+			assert.equal(
+				withLookup.coverThumbnail,
+				`/api/books/${withLookup.id}/cover`,
+			);
+			const removed = await createBookWithFile(
+				db,
+				bucket,
+				reader.id,
+				epub({ coverRemoved: true }),
+				roomy,
+			);
+			assert.equal(removed.coverThumbnail, null);
+			assert.equal(await bucket.get(`covers/${removed.id}`), null);
+		},
 	);
 
 	await t.test(
