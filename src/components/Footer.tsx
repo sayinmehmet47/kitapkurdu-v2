@@ -19,6 +19,18 @@ export default function Footer() {
 					>
 						Kitaplar
 					</Link>
+					<Link
+						to="/shelf"
+						className="text-foreground no-underline hover:text-primary"
+					>
+						Raf Alanı
+					</Link>
+					<Link
+						to="/about"
+						className="text-foreground no-underline hover:text-primary"
+					>
+						Hakkında
+					</Link>
 				</nav>
 			</div>
 			<div className="page-wrap border-t border-border py-5 text-sm text-muted-foreground">

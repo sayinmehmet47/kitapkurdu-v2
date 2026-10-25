@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/about")({
 	component: About,
@@ -6,18 +6,28 @@ export const Route = createFileRoute("/about")({
 
 function About() {
 	return (
-		<main className="page-wrap py-12">
-			<section className="island-shell rounded-2xl p-6 sm:p-8">
-				<p className="island-kicker mb-2">About</p>
-				<h1 className="display-title mb-3 text-4xl font-bold text-foreground sm:text-5xl">
-					A small starter with room to grow.
+		<main className="page-wrap pt-12 sm:pt-20">
+			<article className="max-w-2xl">
+				<h1 className="text-4xl leading-none font-semibold sm:text-6xl">
+					KitapKurdu hakkında
 				</h1>
-				<p className="m-0 max-w-3xl text-base leading-8 text-muted-foreground">
-					TanStack Start gives you type-safe routing, server functions, and
-					modern SSR defaults. Use this as a clean foundation, then layer in
-					your own routes, styling, and add-ons.
-				</p>
-			</section>
+				<div className="mt-10 space-y-6 font-serif text-xl leading-relaxed">
+					<p>
+						KitapKurdu, okurların kitap paylaştığı ve birbirinin okuduklarını
+						keşfettiği küçük bir kitaplık. Amacımız basit: iyi bir kitabı bir
+						sonraki okura ulaştırmak.
+					</p>
+					<p>
+						<Link to="/books" search={{ page: 1 }}>
+							Kitaplıkta
+						</Link>{" "}
+						başlık, yazar ya da ISBN ile arama yapabilir, kitapların künyesine
+						bakabilir, okuduklarını puanlayıp yorumlayabilirsin.{" "}
+						<Link to="/shelf">Raf Alanı</Link> ise okurların birbirine öneri,
+						alıntı ya da soru bıraktığı ortak bir pano.
+					</p>
+				</div>
+			</article>
 		</main>
 	);
 }

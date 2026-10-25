@@ -11,9 +11,15 @@ type BookCardProps = {
 		coverThumbnail: string | null;
 	};
 	priority?: boolean;
+	/** Heading level for the title, so cards fit under the page's outline. */
+	titleAs?: "h2" | "h3";
 };
 
-export function BookCard({ book, priority }: BookCardProps) {
+export function BookCard({
+	book,
+	priority,
+	titleAs: Title = "h2",
+}: BookCardProps) {
 	return (
 		<article className="group relative flex flex-col">
 			<BookCover
@@ -23,7 +29,7 @@ export function BookCard({ book, priority }: BookCardProps) {
 				priority={priority}
 				className="transition-transform duration-200 group-hover:-translate-y-0.5"
 			/>
-			<h2 className="mt-4 text-lg leading-snug font-semibold">
+			<Title className="mt-4 text-lg leading-snug font-semibold">
 				{/* The stretched link makes the whole card, cover included, clickable. */}
 				<Link
 					to="/books/$id"
@@ -32,7 +38,7 @@ export function BookCard({ book, priority }: BookCardProps) {
 				>
 					{book.name}
 				</Link>
-			</h2>
+			</Title>
 			{book.author ? (
 				<p className="mt-0.5 text-sm text-muted-foreground">{book.author}</p>
 			) : null}
