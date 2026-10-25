@@ -1,5 +1,11 @@
 import { sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+	index,
+	integer,
+	sqliteTable,
+	text,
+	uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 const now = sql`(cast(unixepoch('subsecond') * 1000 as integer))`;
 
@@ -156,5 +162,33 @@ export const book = sqliteTable(
 		index("book_author_idx").on(table.author),
 		index("book_uploader_idx").on(table.uploaderId),
 		index("book_created_idx").on(table.createdAt),
+	],
+);
+
+export const rating = sqliteTable(
+	"rating",
+	{
+		id: text("id")
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		bookId: text("book_id")
+			.notNull()
+			.references(() => book.id, { onDelete: "cascade" }),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		rating: integer("rating").notNull(),
+		review: text("review"),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(now)
+			.notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.default(now)
+			.$onUpdate(() => new Date())
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex("rating_book_user_idx").on(table.bookId, table.userId),
+		index("rating_book_idx").on(table.bookId),
 	],
 );

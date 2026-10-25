@@ -15,6 +15,13 @@
       "when": 1792929507273,
       "tag": "0001_high_mentor",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1792931391631,
+      "tag": "0002_lying_yellowjacket",
+      "breakpoints": true
     }
   ]
 }
