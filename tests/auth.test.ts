@@ -7,9 +7,9 @@ import { test } from "node:test";
 import { eq } from "drizzle-orm";
 import { Miniflare } from "miniflare";
 import { createDb } from "../src/db/index";
-import { account, rateLimit, session } from "../src/db/schema";
+import { account, book, rateLimit, session } from "../src/db/schema";
 import { createAuth } from "../src/lib/auth-config";
-import { insertUserTodo, listUserTodos, todoInput } from "../src/lib/todos";
+import { getMyRating, upsertRating } from "../src/lib/ratings";
 
 test("authentication and private data persist in local D1", {
 	timeout: 60_000,
@@ -162,7 +162,7 @@ test("authentication and private data persist in local D1", {
 	);
 
 	await t.test(
-		"a second account cannot see the first account’s todos",
+		"a second account cannot see the first account’s own rating",
 		async () => {
 			const response = await request("sign-up/email", {
 				email: "bob@example.test",
@@ -171,29 +171,22 @@ test("authentication and private data persist in local D1", {
 			});
 			assert.equal(response.status, 200);
 			bobId = ((await response.json()) as { user: { id: string } }).user.id;
-			await insertUserTodo(db, aliceId, { title: "  Alice’s book list  " });
-			await insertUserTodo(db, bobId, { title: "Bob’s book list" });
-			const aliceTodos = await listUserTodos(db, aliceId);
-			const bobTodos = await listUserTodos(db, bobId);
-			assert.deepEqual(
-				aliceTodos.map((todo) => todo.title),
-				["Alice’s book list"],
-			);
-			assert.deepEqual(
-				bobTodos.map((todo) => todo.title),
-				["Bob’s book list"],
-			);
+			const theBook = await db
+				.insert(book)
+				.values({ name: "Sefiller" })
+				.returning()
+				.get();
+			await upsertRating(db, aliceId, {
+				bookId: theBook.id,
+				rating: 5,
+				review: "  Alice’s note  ",
+			});
+			const aliceRating = await getMyRating(db, theBook.id, aliceId);
+			assert.equal(aliceRating?.rating, 5);
+			assert.equal(aliceRating?.review, "Alice’s note");
+			assert.equal(await getMyRating(db, theBook.id, bobId), undefined);
 		},
 	);
-
-	await t.test("todo validation rejects blank and oversized titles", () => {
-		assert.equal(todoInput.safeParse({ title: "   " }).success, false);
-		assert.equal(
-			todoInput.safeParse({ title: "x".repeat(201) }).success,
-			false,
-		);
-		assert.equal(todoInput.safeParse({ title: 123 }).success, false);
-	});
 
 	await t.test("untrusted origins cannot create accounts", async () => {
 		const response = await auth.handler(

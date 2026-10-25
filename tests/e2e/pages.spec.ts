@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { capture, expect, test } from "./fixtures";
 
 test("home page offers search, recent books, and fits the viewport", async ({
@@ -94,70 +95,63 @@ test("site shell is branded, Turkish, themeable, and searchable", async ({
 	await capture(page, info, "header-search");
 });
 
-test("anonymous users must sign in before viewing private todos", async ({
+test("signing up from a protected action returns to that page", async ({
 	page,
 }, info) => {
-	await page.goto("/demo/drizzle");
+	await page.goto("/shelf");
+	await page.getByRole("link", { name: "giriş yapın" }).click();
+	await expect(page).toHaveURL(/\/sign-in\?redirect=%2Fshelf$/);
+	const main = page.getByRole("main");
 	await expect(
-		page.getByText("Sign in to create todos saved to your own account."),
+		main.getByRole("heading", { level: 1, name: "Giriş yap" }),
 	).toBeVisible();
-	await expect(page.getByRole("button", { name: "Add Todo" })).toHaveCount(0);
-	await capture(page, info, "signed-out-database");
-	await page.getByRole("link", { name: "Sign in", exact: true }).last().click();
+	// The header does not repeat the sign-in entry point on the sign-in page.
 	await expect(
-		page.getByRole("heading", { name: "Sign in", exact: true }),
-	).toBeVisible();
-	await capture(page, info, "sign-in");
-});
-
-test("simple form has labelled controls, validation, and a working submit", async ({
-	page,
-}, info) => {
-	await page.goto("/demo/form/simple");
-	await expect(
-		page.getByRole("heading", { name: "Simple Form" }),
-	).toBeVisible();
-	const title = page.getByRole("textbox", { name: "Title", exact: true });
-	await title.fill("");
-	await title.blur();
-	await expect(
-		page.getByText("Title is required", { exact: true }),
-	).toBeVisible();
-	await title.fill("Read a book");
-	await page
-		.getByRole("textbox", { name: "Description", exact: true })
-		.fill("A test of the real form controls.");
-	// Complete the form's blur-triggered validation before submitting.
-	await page.getByRole("textbox", { name: "Description", exact: true }).blur();
-	await expect(
-		page.getByText("Title is required", { exact: true }),
+		page.getByRole("banner").getByRole("link", { name: "Giriş yap" }),
 	).toHaveCount(0);
-	await capture(page, info, "simple-form");
-	const dialog = page.waitForEvent("dialog").then(async (confirmation) => {
-		expect(confirmation.message()).toBe("Form submitted successfully!");
-		await confirmation.accept();
-	});
-	await page.getByRole("button", { name: "Submit", exact: true }).click();
-	await dialog;
+	await capture(page, info, "sign-in");
+
+	await main.getByRole("button", { name: "Kayıt ol", exact: true }).click();
+	await expect(
+		main.getByRole("heading", { level: 1, name: "Hesap oluştur" }),
+	).toBeVisible();
+	await page.getByLabel("Ad", { exact: true }).fill("Raf Okuru");
+	await page
+		.getByLabel("E-posta", { exact: true })
+		.fill(`shelf-${info.project.name}-${Date.now()}@example.test`);
+	await page
+		.getByLabel("Şifre", { exact: true })
+		.fill(randomBytes(18).toString("base64url"));
+	await capture(page, info, "sign-up");
+	await main
+		.getByRole("button", { name: "Hesap oluştur", exact: true })
+		.click();
+
+	await expect(page).toHaveURL(/\/shelf$/);
+	await expect(page.getByLabel("Bir mesaj bırak")).toBeVisible();
 });
 
-test("address form renders and exposes its fields accessibly", async ({
+test("main pages fit a 360px-wide screen without horizontal scrolling", async ({
 	page,
-}, info) => {
-	await page.goto("/demo/form/address");
-	await expect(
-		page.getByRole("heading", { name: "Address Form" }),
-	).toBeVisible();
-	await page
-		.getByRole("textbox", { name: "Full Name", exact: true })
-		.fill("Test Reader");
-	await page
-		.getByRole("textbox", { name: "Email", exact: true })
-		.fill("reader@example.test");
-	await page
-		.getByRole("textbox", { name: "Street Address", exact: true })
-		.fill("123 Test Street");
-	await page.getByRole("combobox", { name: "Country", exact: true }).click();
-	await page.getByRole("option", { name: "Germany", exact: true }).click();
-	await capture(page, info, "address-form");
+}) => {
+	await page.setViewportSize({ width: 360, height: 740 });
+	for (const path of [
+		"/",
+		"/books",
+		"/books/seed-suc-ve-ceza",
+		"/shelf",
+		"/about",
+		"/sign-in",
+	]) {
+		await page.goto(path);
+		await expect
+			.poll(
+				() =>
+					page.evaluate(
+						() => document.documentElement.scrollWidth <= window.innerWidth,
+					),
+				{ message: `${path} overflows at 360px` },
+			)
+			.toBe(true);
+	}
 });

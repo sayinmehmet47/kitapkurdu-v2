@@ -62,18 +62,15 @@ export async function signUp(page: Page) {
 		email: `reader-${randomUUID()}@example.test`,
 		password: randomBytes(18).toString("base64url"),
 	};
-	await page.goto("/demo/better-auth");
-	await page
-		.getByRole("button", { name: "Don't have an account? Sign up" })
+	await page.goto("/sign-in");
+	const main = page.getByRole("main");
+	await main.getByRole("button", { name: "Kayıt ol", exact: true }).click();
+	await page.getByLabel("Ad", { exact: true }).fill(credentials.name);
+	await page.getByLabel("E-posta", { exact: true }).fill(credentials.email);
+	await page.getByLabel("Şifre", { exact: true }).fill(credentials.password);
+	await main
+		.getByRole("button", { name: "Hesap oluştur", exact: true })
 		.click();
-	await page.getByLabel("Name", { exact: true }).fill(credentials.name);
-	await page.getByLabel("Email", { exact: true }).fill(credentials.email);
-	await page.getByLabel("Password", { exact: true }).fill(credentials.password);
-	await page
-		.getByRole("button", { name: "Create account", exact: true })
-		.click();
-	await expect(
-		page.getByRole("heading", { name: "Welcome back" }),
-	).toBeVisible();
+	await expect(page.getByRole("heading", { name: "Hoş geldin" })).toBeVisible();
 	return credentials;
 }
