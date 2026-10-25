@@ -206,6 +206,11 @@
     @apply h-10 min-h-10 w-full rounded-md border border-input bg-card px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 disabled:opacity-60 md:text-sm;
   }
 
+  /* Multi-line fields size by their rows, not the single-line height. */
+  textarea.demo-input {
+    @apply h-auto py-2;
+  }
+
   .demo-button {
     @apply inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground no-underline transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-60;
   }

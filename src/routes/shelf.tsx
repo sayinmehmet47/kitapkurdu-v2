@@ -72,7 +72,9 @@ function ShelfPage() {
 								maxLength={500}
 								className="demo-input w-full"
 							/>
-							{error ? <p className="text-sm text-red-600">{error}</p> : null}
+							{error ? (
+								<p className="text-sm text-destructive">{error}</p>
+							) : null}
 							<button type="submit" className="demo-button">
 								Gönder
 							</button>
