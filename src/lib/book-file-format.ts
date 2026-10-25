@@ -1,4 +1,5 @@
-export const MAX_BOOK_FILE_BYTES = 25 * 1024 * 1024;
+// Below the Workers request-body limit (100 MB on the Free plan).
+export const MAX_BOOK_FILE_BYTES = 95 * 1024 * 1024;
 export const BOOK_FILE_ACCEPT =
 	".pdf,.epub,application/pdf,application/epub+zip";
 export type BookFileFormat = "pdf" | "epub";

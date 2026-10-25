@@ -1,15 +1,19 @@
 import { strToU8, type Zippable, zipSync } from "fflate";
 
 // Small, real documents; never upload a user's book or personal file in tests.
-export function samplePdf() {
+export function samplePdf(
+	pages = ["KitapKurdu PDF page 1", "KitapKurdu PDF page 2"],
+) {
+	// Objects: catalog, page tree, font, then a page and its content per page.
+	const kids = pages.map((_, index) => `${4 + index * 2} 0 R`).join(" ");
 	const objects = [
 		"<< /Type /Catalog /Pages 2 0 R >>",
-		"<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>",
+		`<< /Type /Pages /Kids [${kids}] /Count ${pages.length} >>`,
 		"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-		"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 560] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>",
-		pdfStream("KitapKurdu PDF page 1"),
-		"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 560] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>",
-		pdfStream("KitapKurdu PDF page 2"),
+		...pages.flatMap((text, index) => [
+			`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 560] /Resources << /Font << /F1 3 0 R >> >> /Contents ${5 + index * 2} 0 R >>`,
+			pdfStream(text),
+		]),
 	];
 	let result = "%PDF-1.7\n";
 	const offsets = [0];

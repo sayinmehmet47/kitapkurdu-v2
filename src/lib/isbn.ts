@@ -21,3 +21,23 @@ export function normalizeIsbn(value: string | undefined | null) {
 	}
 	return undefined;
 }
+
+// "ISBN 978-605-…", "ISBN-10: 0-306-40615-2", "ISBN13 9786051234567".
+const LABELLED_ISBN =
+	/ISBN(?:[\s-]?1[03])?[\s:]*(97[89](?:[\s-]?\d){10}|\d(?:[\s-]?\d){8}[\s-]?[\dX])(?!\d)/gi;
+// An unlabelled 13-digit number starting with the book prefixes.
+const BARE_ISBN = /(?<!\d)97[89](?:[\s-]?\d){10}(?!\d)/g;
+
+/**
+ * The first valid ISBN in a book's text (copyright page, back cover).
+ * Labelled numbers win; checksums filter out phone numbers and the like.
+ */
+export function findIsbn(text: string) {
+	for (const pattern of [LABELLED_ISBN, BARE_ISBN]) {
+		for (const match of text.matchAll(pattern)) {
+			const isbn = normalizeIsbn(match[1] ?? match[0]);
+			if (isbn) return isbn;
+		}
+	}
+	return undefined;
+}

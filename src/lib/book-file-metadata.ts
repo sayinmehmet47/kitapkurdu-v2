@@ -2,9 +2,12 @@
 // EPUB's own package metadata and cover, a PDF's document info, and as a
 // last resort the file name ("Title -- Author -- (source).epub").
 import type { EpubMetadata } from "#/lib/epub";
-import { normalizeIsbn } from "#/lib/isbn";
+import { findIsbn, normalizeIsbn } from "#/lib/isbn";
 
-export type FileMetadata = EpubMetadata;
+export type FileMetadata = EpubMetadata & {
+	/** The title is only a guess from the file name; a found title may replace it. */
+	titleFromFileName?: boolean;
+};
 
 // Download-site tags such as "( WeLib.org )", "(z-lib.org)" or "[Anna's Archive]".
 const SOURCE_TAG = /\([^)]*\)|\[[^\]]*\]/g;
@@ -58,6 +61,10 @@ function plausible(value: unknown) {
 	return text;
 }
 
+// The copyright page is near the front; some books print the ISBN on the back.
+const FIRST_PAGES = 8;
+const LAST_PAGES = 3;
+
 async function pdfMetadata(bytes: Uint8Array): Promise<FileMetadata> {
 	const [lib, worker] = await Promise.all([
 		import("pdfjs-dist"),
@@ -75,7 +82,35 @@ async function pdfMetadata(bytes: Uint8Array): Promise<FileMetadata> {
 		const { info } = (await document.getMetadata()) as {
 			info?: Record<string, unknown>;
 		};
-		return { title: plausible(info?.Title), author: plausible(info?.Author) };
+		const pages = new Set<number>();
+		for (let page = 1; page <= Math.min(FIRST_PAGES, document.numPages); page++)
+			pages.add(page);
+		for (
+			let page = Math.max(1, document.numPages - LAST_PAGES + 1);
+			page <= document.numPages;
+			page++
+		)
+			pages.add(page);
+		let isbn: string | undefined;
+		for (const number of pages) {
+			try {
+				const page = await document.getPage(number);
+				const content = await page.getTextContent();
+				isbn = findIsbn(
+					content.items
+						.map((item) => ("str" in item ? item.str : ""))
+						.join(" "),
+				);
+			} catch {
+				// A page without readable text has no ISBN.
+			}
+			if (isbn) break;
+		}
+		return {
+			title: plausible(info?.Title),
+			author: plausible(info?.Author),
+			isbn,
+		};
 	} finally {
 		await task.destroy();
 	}
@@ -101,15 +136,21 @@ export async function readFileMetadata(file: File): Promise<FileMetadata> {
 	const fromName = metadataFromFileName(file.name);
 	try {
 		const bytes = new Uint8Array(await file.arrayBuffer());
+		let fromFile: FileMetadata | undefined;
 		if (bytes[0] === 0x50 && bytes[1] === 0x4b) {
 			const { readEpubMetadata } = await import("#/lib/epub");
-			return merge(readEpubMetadata(bytes), fromName);
+			fromFile = readEpubMetadata(bytes, { scanText: true });
+		} else if (new TextDecoder().decode(bytes.subarray(0, 5)) === "%PDF-") {
+			fromFile = await pdfMetadata(bytes);
 		}
-		if (new TextDecoder().decode(bytes.subarray(0, 5)) === "%PDF-") {
-			return merge(await pdfMetadata(bytes), fromName);
+		if (fromFile) {
+			return {
+				...merge(fromFile, fromName),
+				titleFromFileName: !fromFile.title && Boolean(fromName.title),
+			};
 		}
 	} catch {
 		// Fall through to the file name.
 	}
-	return fromName;
+	return { ...fromName, titleFromFileName: Boolean(fromName.title) };
 }
