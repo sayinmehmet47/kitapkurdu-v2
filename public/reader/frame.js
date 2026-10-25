@@ -95,6 +95,11 @@ function applySettings() {
 	}
 	if (!view?.renderer) return;
 	view.renderer.setAttribute("flow", settings.flow);
+	// Pages slide into place after a swipe or tap, like a printed book, unless
+	// the reader asked the system for reduced motion.
+	if (matchMedia("(prefers-reduced-motion: reduce)").matches)
+		view.renderer.removeAttribute("animated");
+	else view.renderer.setAttribute("animated", "");
 	view.renderer.setAttribute("max-inline-size", "680px");
 	view.renderer.setAttribute("margin", "40px");
 	view.renderer.setAttribute("gap", "6%");
