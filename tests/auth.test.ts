@@ -107,14 +107,20 @@ test("authentication and private data persist in local D1", {
 				email: "alice@example.test",
 				name: "Alice",
 				password,
+				role: "admin",
 			});
 			assert.equal(response.status, 200);
 			aliceCookie = getCookie(response);
 			const result = (await response.json()) as {
-				user: { id: string; email: string };
+				user: { id: string; email: string; role: string };
 			};
 			aliceId = result.user.id;
 			assert.equal(result.user.email, "alice@example.test");
+			assert.equal(
+				result.user.role,
+				"user",
+				"signup cannot grant admin rights",
+			);
 			const storedAccount = await db
 				.select()
 				.from(account)

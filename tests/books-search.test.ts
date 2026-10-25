@@ -91,4 +91,17 @@ test("listBooks filters by a query across name, author, and description", {
 
 	const blank = await listBooks(db, { q: "   " });
 	assert.equal(blank.total, 3, "blank query must not filter");
+
+	// Both are valid queries under the UI/schema's 200-character maximum.
+	// D1 limits LIKE patterns by UTF-8 bytes rather than JavaScript length.
+	for (const title of ["a".repeat(200), "Yönetici Kitabı ".repeat(3)]) {
+		await db.insert(book).values({ name: title.trim() });
+		const longQuery = await listBooks(db, { q: title });
+		assert.deepEqual(names(longQuery), [title.trim()]);
+		assert.equal(longQuery.total, 1);
+	}
+	await db.insert(book).values({ name: "100% Kitap_Adı" });
+	for (const q of ["100%", "_"]) {
+		assert.deepEqual(names(await listBooks(db, { q })), ["100% Kitap_Adı"]);
+	}
 });
