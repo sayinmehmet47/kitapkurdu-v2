@@ -4,6 +4,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { useState } from "react";
 import { z } from "zod";
+import { BookCover } from "#/components/books/BookCover";
+import { CategoryList } from "#/components/books/CategoryList";
+import { Button, buttonVariants } from "#/components/ui/button";
+import { Label } from "#/components/ui/label";
+import { Textarea } from "#/components/ui/textarea";
 import { createDb } from "#/db";
 import { getAuth } from "#/lib/auth";
 import { getBookById } from "#/lib/books";
@@ -67,10 +72,15 @@ function formatBytes(size: number | null) {
 }
 
 function Stars({ value }: { value: number }) {
+	const filled = Math.round(value);
 	return (
-		<span role="img" aria-label={`${value} yıldız`} className="text-primary">
-			{"★".repeat(Math.round(value))}
-			<span className="text-input">{"★".repeat(5 - Math.round(value))}</span>
+		<span
+			role="img"
+			aria-label={`5 üzerinden ${value} yıldız`}
+			className="tracking-[0.08em] text-primary"
+		>
+			{"★".repeat(filled)}
+			<span className="text-input">{"★".repeat(5 - filled)}</span>
 		</span>
 	);
 }
@@ -106,16 +116,17 @@ function RatingForm({
 	};
 
 	return (
-		<form onSubmit={handleSubmit} className="mt-6 space-y-3">
-			<div>
-				<label htmlFor="rating" className="mb-1 block text-sm font-semibold">
-					Puanın
-				</label>
+		<form onSubmit={handleSubmit} className="grid gap-4">
+			<h3 className="text-xl font-semibold">
+				{initial ? "Değerlendirmeni güncelle" : "Bu kitabı değerlendir"}
+			</h3>
+			<div className="grid gap-2">
+				<Label htmlFor="rating">Puanın</Label>
 				<select
 					id="rating"
 					value={rating}
 					onChange={(event) => setRating(event.target.value)}
-					className="demo-input"
+					className="h-10 w-full max-w-48 rounded-md border border-input bg-card px-3 text-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
 				>
 					<option value="">Puan seç</option>
 					{[1, 2, 3, 4, 5].map((n) => (
@@ -125,22 +136,24 @@ function RatingForm({
 					))}
 				</select>
 			</div>
-			<div>
-				<label htmlFor="review" className="mb-1 block text-sm font-semibold">
-					Yorum (isteğe bağlı)
-				</label>
-				<textarea
+			<div className="grid gap-2">
+				<Label htmlFor="review">Yorum (isteğe bağlı)</Label>
+				<Textarea
 					id="review"
 					value={review}
 					onChange={(event) => setReview(event.target.value)}
-					rows={3}
-					className="demo-input h-auto w-full py-2"
+					rows={4}
+					className="bg-card"
 				/>
 			</div>
-			{error ? <p className="text-sm text-destructive">{error}</p> : null}
-			<button type="submit" className="demo-button">
+			{error ? (
+				<p role="alert" className="text-sm text-destructive">
+					{error}
+				</p>
+			) : null}
+			<Button type="submit" className="justify-self-start">
 				{initial ? "Güncelle" : "Gönder"}
-			</button>
+			</Button>
 		</form>
 	);
 }
@@ -151,16 +164,17 @@ function BookDetailPage() {
 
 	if (!data) {
 		return (
-			<main className="demo-page demo-center">
-				<section className="demo-panel w-full max-w-2xl text-center">
-					<h1 className="demo-title">Kitap bulunamadı</h1>
-					<p className="demo-muted mt-2">
-						“{id}” kimliğine sahip bir kitap yok veya kaldırılmış.
-					</p>
-					<Link to="/books" className="demo-button mt-6 inline-block">
-						← Kitaplara dön
-					</Link>
-				</section>
+			<main className="page-wrap py-24 text-center">
+				<h1 className="text-4xl font-semibold">Kitap bulunamadı</h1>
+				<p className="mx-auto mt-3 max-w-md text-muted-foreground">
+					“{id}” kimliğine sahip bir kitap yok ya da kaldırılmış.
+				</p>
+				<Link
+					to="/books"
+					className={buttonVariants({ variant: "outline", className: "mt-8" })}
+				>
+					← Kitaplara dön
+				</Link>
 			</main>
 		);
 	}
@@ -169,135 +183,130 @@ function BookDetailPage() {
 	const language = item.language === "english" ? "English" : "Türkçe";
 	const average = Number(summary?.average ?? 0);
 	const count = summary?.count ?? 0;
+	const details = [
+		["Yayınevi", item.publisher],
+		["ISBN", item.isbn],
+		["Dil", language],
+		["Boyut", item.size == null ? null : formatBytes(item.size)],
+	].filter((row): row is [string, string] => Boolean(row[1]));
 
 	return (
-		<main className="demo-page">
-			<section className="mx-auto w-full max-w-4xl px-4 py-10">
-				<Link to="/books" className="demo-muted text-sm hover:underline">
-					← Kitaplara dön
-				</Link>
+		<main className="page-wrap pt-8 pb-4 sm:pt-10">
+			<Link
+				to="/books"
+				className="text-sm text-muted-foreground no-underline hover:text-foreground"
+			>
+				← Kitaplara dön
+			</Link>
 
-				<div className="mt-6 flex flex-col gap-8 sm:flex-row">
-					<div className="w-full max-w-xs shrink-0">
-						{item.coverThumbnail ? (
-							<img
-								src={item.coverThumbnail}
-								alt={`${item.name} kapağı`}
-								className="aspect-[2/3] w-full rounded-md object-cover"
-							/>
-						) : (
-							<div className="flex aspect-[2/3] w-full items-center justify-center rounded-md bg-muted text-6xl">
-								📖
-							</div>
-						)}
-					</div>
+			<article className="mt-8 grid gap-10 md:grid-cols-[minmax(0,280px)_1fr] md:gap-14">
+				<div className="mx-auto w-full max-w-[220px] md:max-w-none">
+					<BookCover
+						name={item.name}
+						author={item.author}
+						src={item.coverThumbnail}
+						priority
+					/>
+				</div>
 
-					<div className="min-w-0 flex-1">
-						<p className="island-kicker mb-2">Kitap</p>
-						<h1 className="demo-title">{item.name}</h1>
-						{item.author ? (
-							<p className="demo-muted mt-2 text-lg">{item.author}</p>
-						) : null}
+				<div className="min-w-0">
+					<h1 className="text-4xl leading-[1.05] font-semibold sm:text-5xl">
+						{item.name}
+					</h1>
+					{item.author ? (
+						<p className="mt-3 font-serif text-xl text-muted-foreground italic">
+							{item.author}
+						</p>
+					) : null}
 
-						<dl className="mt-6 space-y-2 text-sm">
-							{item.publisher ? (
-								<div className="flex gap-2">
-									<dt className="w-28 shrink-0 font-semibold">Yayınevi</dt>
-									<dd>{item.publisher}</dd>
-								</div>
-							) : null}
-							{item.isbn ? (
-								<div className="flex gap-2">
-									<dt className="w-28 shrink-0 font-semibold">ISBN</dt>
-									<dd>{item.isbn}</dd>
-								</div>
-							) : null}
-							<div className="flex gap-2">
-								<dt className="w-28 shrink-0 font-semibold">Dil</dt>
-								<dd>{language}</dd>
-							</div>
-							{item.size !== null && item.size !== undefined ? (
-								<div className="flex gap-2">
-									<dt className="w-28 shrink-0 font-semibold">Boyut</dt>
-									<dd>{formatBytes(item.size)}</dd>
-								</div>
-							) : null}
-						</dl>
+					{item.description ? (
+						<p className="mt-8 max-w-prose font-serif text-lg leading-relaxed">
+							{item.description}
+						</p>
+					) : null}
 
-						{(item.category ?? []).length > 0 ? (
-							<ul className="mt-4 flex flex-wrap gap-1">
-								{(item.category ?? []).map((category) => (
-									<li
-										key={category}
-										className="rounded-full bg-muted px-2 py-0.5 text-xs"
-									>
-										{category}
-									</li>
-								))}
-							</ul>
-						) : null}
-
-						{item.description ? (
-							<p className="demo-muted mt-6 leading-relaxed">
-								{item.description}
-							</p>
-						) : null}
-
+					<div className="mt-8">
 						{item.fileUrl ? (
 							<a
 								href={item.fileUrl}
 								target="_blank"
 								rel="noreferrer"
-								className="demo-button mt-6 inline-block"
+								className={buttonVariants({ size: "lg" })}
 							>
 								Kitabı aç
 							</a>
 						) : (
-							<p className="demo-muted mt-6 text-sm">
+							<p className="text-sm text-muted-foreground">
 								Bu kitap için dosya henüz eklenmemiş.
 							</p>
 						)}
 					</div>
+
+					<dl className="mt-10 grid max-w-md grid-cols-[auto_1fr] border-t border-border text-sm">
+						{details.map(([term, value]) => (
+							<div key={term} className="contents">
+								<dt className="border-b border-border py-2.5 pr-8 text-muted-foreground">
+									{term}
+								</dt>
+								<dd className="border-b border-border py-2.5">{value}</dd>
+							</div>
+						))}
+					</dl>
+
+					<CategoryList categories={item.category} className="mt-5" />
+				</div>
+			</article>
+
+			<section
+				aria-labelledby="ratings-heading"
+				className="mt-16 grid gap-8 border-t border-border pt-10 md:grid-cols-[minmax(0,280px)_1fr] md:gap-14"
+			>
+				<div>
+					<h2 id="ratings-heading" className="text-2xl font-semibold">
+						Değerlendirmeler
+					</h2>
+					<p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+						<Stars value={average} />
+						<span>
+							{average.toFixed(1)} · {count} değerlendirme
+						</span>
+					</p>
 				</div>
 
-				<section className="mt-12 border-t border-border pt-8">
-					<h2 className="demo-section-title mb-2">Değerlendirmeler</h2>
-					<p className="demo-muted mb-6 text-sm">
-						<Stars value={average} /> {average.toFixed(1)} · {count} yorum
-					</p>
-
+				<div className="min-w-0">
 					{ratings.length > 0 ? (
-						<ul className="space-y-4">
+						<ul className="divide-y divide-border border-y border-border">
 							{ratings.map((entry) => (
-								<li key={entry.id} className="demo-card p-4">
-									<div className="flex items-center gap-2">
-										<span className="font-semibold">{entry.username}</span>
+								<li key={entry.id} className="py-5">
+									<div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+										<span className="font-medium">{entry.username}</span>
 										<Stars value={entry.rating} />
 									</div>
 									{entry.review ? (
-										<p className="demo-muted mt-2 text-sm">{entry.review}</p>
+										<p className="mt-2 max-w-prose font-serif text-lg leading-relaxed">
+											{entry.review}
+										</p>
 									) : null}
 								</li>
 							))}
 						</ul>
 					) : (
-						<p className="demo-muted text-sm">Henüz yorum yok.</p>
+						<p className="font-serif text-lg text-muted-foreground italic">
+							Henüz değerlendirme yok. İlk yorumu siz yazın.
+						</p>
 					)}
 
-					<div className="demo-card mt-6 p-4">
+					<div className="mt-10 max-w-xl">
 						{isSignedIn ? (
 							<RatingForm bookId={item.id} initial={myRating ?? null} />
 						) : (
-							<p className="demo-muted text-sm">
+							<p className="text-muted-foreground">
 								Değerlendirmek için{" "}
-								<Link to="/demo/better-auth" className="underline">
-									giriş yapın
-								</Link>
-								.
+								<Link to="/demo/better-auth">giriş yapın</Link>.
 							</p>
 						)}
 					</div>
-				</section>
+				</div>
 			</section>
 		</main>
 	);

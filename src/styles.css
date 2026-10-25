@@ -45,15 +45,15 @@
   --muted: oklch(0.28 0.012 60);
   --secondary: oklch(0.28 0.012 60);
   --muted-foreground: oklch(0.72 0.016 75);
-  --primary: oklch(0.74 0.105 28);
-  --primary-foreground: oklch(0.2 0.01 60);
+  --primary: oklch(0.66 0.125 26);
+  --primary-foreground: oklch(0.17 0.01 60);
   --accent: oklch(0.29 0.04 25);
   --accent-foreground: oklch(0.82 0.08 28);
   --destructive: oklch(0.7 0.17 25);
   --destructive-foreground: oklch(0.7 0.17 25);
   --border: oklch(0.32 0.012 60);
   --input: oklch(0.53 0.014 65);
-  --ring: oklch(0.74 0.105 28);
+  --ring: oklch(0.66 0.125 26);
 }
 
 @theme inline {
@@ -204,6 +204,11 @@
 
   .demo-input {
     @apply h-10 min-h-10 w-full rounded-md border border-input bg-card px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 disabled:opacity-60 md:text-sm;
+  }
+
+  /* Multi-line fields size by their rows, not the single-line height. */
+  textarea.demo-input {
+    @apply h-auto py-2;
   }
 
   .demo-button {
