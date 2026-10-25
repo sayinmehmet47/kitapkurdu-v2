@@ -8,6 +8,13 @@
       "when": 1792924255451,
       "tag": "0000_initial_d1_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1792929507273,
+      "tag": "0001_high_mentor",
+      "breakpoints": true
     }
   ]
 }
