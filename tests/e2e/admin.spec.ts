@@ -87,9 +87,16 @@ test("admin can edit, hide a duplicate, and delete uploaded books", async ({
 
 	await uploadAdminBook(page, `${name} Silinecek`);
 	const deletedUrl = page.url();
+	const deletedId = deletedUrl.split("/").at(-1) ?? "";
+	expect(
+		(await page.request.get(`/api/books/${deletedId}/download`)).status(),
+	).toBe(200);
 	page.once("dialog", (dialog) => dialog.accept());
 	await page.getByRole("button", { name: "Kitabı sil", exact: true }).click();
 	await expect(page).toHaveURL(/\/books\/?$/);
+	expect(
+		(await page.request.get(`/api/books/${deletedId}/download`)).status(),
+	).toBe(404);
 	await page.goto(deletedUrl);
 	await expect(
 		page.getByRole("heading", { name: "Kitap bulunamadı" }),
