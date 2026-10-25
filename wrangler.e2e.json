@@ -6,7 +6,10 @@
 	"main": "@tanstack/react-start/server-entry",
 	"workers_dev": false,
 	"preview_urls": false,
-	"vars": { "BETTER_AUTH_URL": "http://127.0.0.1:4173" },
+	"vars": {
+		"BETTER_AUTH_URL": "http://127.0.0.1:4173",
+		"UPLOAD_MAX_TOTAL_BYTES": "4096"
+	},
 	"secrets": { "required": ["BETTER_AUTH_SECRET"] },
 	"d1_databases": [
 		{

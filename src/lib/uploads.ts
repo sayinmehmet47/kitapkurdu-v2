@@ -1,3 +1,4 @@
+import { and, count, eq, gt, isNotNull, sum } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "#/db";
 import { book } from "#/db/schema";
@@ -16,6 +17,73 @@ export const uploadInput = z.object({
 
 // Keep uploads comfortably under the Workers request-body limit (base64 adds ~33%).
 export const MAX_FILE_BYTES = 25 * 1024 * 1024;
+
+// Spending guardrails. R2 has no hard billing cap, so the app stops accepting
+// uploads before storage leaves the 10 GB free tier, and limits each account.
+export const UPLOAD_LIMITS = {
+	maxTotalBytes: 8 * 1024 ** 3,
+	maxUploadsPerDay: 5,
+};
+
+export type UploadLimits = typeof UPLOAD_LIMITS;
+
+/**
+ * Limits for an environment. `UPLOAD_MAX_TOTAL_BYTES` (wrangler var) may lower
+ * the storage ceiling, e.g. for a small test budget; it never raises it.
+ */
+export function uploadLimitsFor(
+	maxTotalBytes: string | undefined,
+): UploadLimits {
+	const configured = Number(maxTotalBytes);
+	return Number.isSafeInteger(configured) && configured > 0
+		? {
+				...UPLOAD_LIMITS,
+				maxTotalBytes: Math.min(configured, UPLOAD_LIMITS.maxTotalBytes),
+			}
+		: UPLOAD_LIMITS;
+}
+
+/** A rejection the uploader should see verbatim (not an internal failure). */
+export class UploadLimitError extends Error {}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+async function assertWithinLimits(
+	db: Database,
+	userId: string,
+	incomingBytes: number,
+	limits: UploadLimits,
+) {
+	const [recent, storage] = await Promise.all([
+		db
+			.select({ uploads: count() })
+			.from(book)
+			.where(
+				and(
+					eq(book.uploaderId, userId),
+					gt(book.createdAt, new Date(Date.now() - DAY_MS)),
+				),
+			)
+			.get(),
+		// Every stored file is an R2 object, so the D1 size total tracks R2 usage.
+		db
+			.select({ used: sum(book.size) })
+			.from(book)
+			.where(isNotNull(book.fileUrl))
+			.get(),
+	]);
+
+	if ((recent?.uploads ?? 0) >= limits.maxUploadsPerDay) {
+		throw new UploadLimitError(
+			`Bugün en fazla ${limits.maxUploadsPerDay} kitap yükleyebilirsin. Yarın tekrar dene.`,
+		);
+	}
+	if (Number(storage?.used ?? 0) + incomingBytes > limits.maxTotalBytes) {
+		throw new UploadLimitError(
+			"Kitaplığın depolama alanı şu an dolu; yeni yükleme kabul edilmiyor.",
+		);
+	}
+}
 
 const PDF_HEADER = "%PDF-";
 
@@ -42,6 +110,7 @@ export async function createBookWithFile(
 	bucket: R2Bucket,
 	userId: string,
 	input: unknown,
+	limits: UploadLimits = UPLOAD_LIMITS,
 ) {
 	const data = uploadInput.parse(input);
 	const bytes = decodeBase64(data.fileBase64);
@@ -52,6 +121,7 @@ export async function createBookWithFile(
 	if (!isPdf(bytes)) {
 		throw new Error("Yalnızca PDF dosyaları yüklenebilir.");
 	}
+	await assertWithinLimits(db, userId, bytes.byteLength, limits);
 
 	const category = (data.category ?? "")
 		.split(",")

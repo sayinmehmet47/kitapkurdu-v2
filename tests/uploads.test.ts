@@ -6,7 +6,13 @@ import { test } from "node:test";
 import { Miniflare } from "miniflare";
 import { createDb } from "../src/db/index";
 import { book, user } from "../src/db/schema";
-import { createBookWithFile, uploadInput } from "../src/lib/uploads";
+import {
+	createBookWithFile,
+	UPLOAD_LIMITS,
+	UploadLimitError,
+	uploadInput,
+	uploadLimitsFor,
+} from "../src/lib/uploads";
 
 test("book uploads store the file in R2 and the metadata in D1", {
 	timeout: 60_000,
@@ -125,4 +131,68 @@ test("book uploads store the file in R2 and the metadata in D1", {
 		2,
 		"Only valid PDF uploads are recorded in D1",
 	);
+
+	// A configured ceiling can lower the built-in limit but never raise it.
+	assert.equal(uploadLimitsFor("4096").maxTotalBytes, 4096);
+	assert.equal(
+		uploadLimitsFor(String(UPLOAD_LIMITS.maxTotalBytes * 2)).maxTotalBytes,
+		UPLOAD_LIMITS.maxTotalBytes,
+	);
+	for (const invalid of [undefined, "", "abc", "-1", "0", "1.5"]) {
+		assert.deepEqual(uploadLimitsFor(invalid), UPLOAD_LIMITS, String(invalid));
+	}
+
+	// Spending guardrails: limits are checked before anything is written to R2.
+	const pdf = (name: string) => ({
+		name,
+		fileName: `${name}.pdf`,
+		fileBase64: Buffer.from(payload).toString("base64"),
+	});
+	const objectCount = async () => (await bucket.list()).objects.length;
+	const objectsBefore = await objectCount();
+
+	await assert.rejects(
+		createBookWithFile(db, bucket, owner.id, pdf("Günlük"), {
+			maxTotalBytes: 1024 ** 3,
+			maxUploadsPerDay: 2,
+		}),
+		(error: unknown) =>
+			error instanceof UploadLimitError &&
+			/Bugün en fazla 2/.test(error.message),
+	);
+
+	const used = (await db.select().from(book)).reduce(
+		(total, item) => total + (item.size ?? 0),
+		0,
+	);
+	await assert.rejects(
+		createBookWithFile(db, bucket, owner.id, pdf("Dolu"), {
+			maxTotalBytes: used + Buffer.byteLength(payload) - 1,
+			maxUploadsPerDay: 100,
+		}),
+		(error: unknown) =>
+			error instanceof UploadLimitError && /depolama alanı/.test(error.message),
+	);
+
+	// Another user is not affected by the first user's daily count.
+	const reader = await db
+		.insert(user)
+		.values({
+			id: crypto.randomUUID(),
+			name: "Reader",
+			email: "reader@example.test",
+		})
+		.returning()
+		.get();
+	await createBookWithFile(db, bucket, reader.id, pdf("Okur"), {
+		maxTotalBytes: 1024 ** 3,
+		maxUploadsPerDay: 2,
+	});
+
+	assert.equal(
+		await objectCount(),
+		objectsBefore + 1,
+		"Rejected uploads must not write to R2",
+	);
+	assert.equal((await db.select().from(book)).length, 3);
 });

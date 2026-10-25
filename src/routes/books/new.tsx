@@ -9,7 +9,12 @@ import { Label } from "#/components/ui/label";
 import { Textarea } from "#/components/ui/textarea";
 import { createDb } from "#/db";
 import { getAuth } from "#/lib/auth";
-import { createBookWithFile, uploadInput } from "#/lib/uploads";
+import {
+	createBookWithFile,
+	UploadLimitError,
+	uploadInput,
+	uploadLimitsFor,
+} from "#/lib/uploads";
 
 const getUploadContext = createServerFn({ method: "GET" }).handler(async () => {
 	const session = await getAuth().api.getSession({
@@ -25,13 +30,22 @@ const submitUpload = createServerFn({ method: "POST" })
 			headers: getRequestHeaders(),
 		});
 		if (!session) throw new Error("Sign in before uploading.");
-		const row = await createBookWithFile(
-			createDb(env.DB),
-			env.BOOKS,
-			session.user.id,
-			data,
-		);
-		return { id: row.id };
+		try {
+			const row = await createBookWithFile(
+				createDb(env.DB),
+				env.BOOKS,
+				session.user.id,
+				data,
+				uploadLimitsFor(env.UPLOAD_MAX_TOTAL_BYTES),
+			);
+			return { ok: true as const, id: row.id };
+		} catch (error) {
+			// Limit rejections are meant for the uploader; anything else stays generic.
+			if (error instanceof UploadLimitError) {
+				return { ok: false as const, error: error.message };
+			}
+			throw error;
+		}
 	});
 
 export const Route = createFileRoute("/books/new")({
@@ -102,6 +116,10 @@ function UploadPage() {
 					fileBase64,
 				},
 			});
+			if (!result.ok) {
+				setError(result.error);
+				return;
+			}
 			navigate({ to: "/books/$id", params: { id: result.id } });
 		} catch {
 			setError("Yükleme başarısız. Lütfen tekrar deneyin.");
@@ -203,7 +221,11 @@ function UploadPage() {
 						/>
 					</div>
 
-					{error ? <p className="text-sm text-destructive">{error}</p> : null}
+					{error ? (
+						<p role="alert" className="text-sm text-destructive">
+							{error}
+						</p>
+					) : null}
 
 					<Button type="submit" disabled={submitting}>
 						{submitting ? "Yükleniyor…" : "Yükle"}

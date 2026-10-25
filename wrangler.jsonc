@@ -6,7 +6,10 @@
 	"compatibility_flags": ["nodejs_compat"],
 	"main": "@tanstack/react-start/server-entry",
 	"vars": {
-		"BETTER_AUTH_URL": "http://localhost:3000"
+		"BETTER_AUTH_URL": "http://localhost:3000",
+		// Upload storage ceiling in bytes (R2 has no billing cap). Can only lower
+		// the 8 GB built-in limit in src/lib/uploads.ts, never raise it.
+		"UPLOAD_MAX_TOTAL_BYTES": "8589934592"
 	},
 	"secrets": {
 		"required": ["BETTER_AUTH_SECRET"]
@@ -42,7 +45,8 @@
 				}
 			],
 			"vars": {
-				"BETTER_AUTH_URL": "https://kitapkurdu.kigx.xyz"
+				"BETTER_AUTH_URL": "https://kitapkurdu.kigx.xyz",
+				"UPLOAD_MAX_TOTAL_BYTES": "8589934592"
 			},
 			"secrets": {
 				"required": ["BETTER_AUTH_SECRET"]

@@ -35,3 +35,32 @@ test("anonymous user is prompted to sign in to upload", async ({ page }) => {
 	await page.goto("/books/new");
 	await expect(page.getByRole("link", { name: "giriş yapın" })).toBeVisible();
 });
+
+test("an upload over the storage ceiling is refused with a message", async ({
+	page,
+}, info) => {
+	// The E2E config sets UPLOAD_MAX_TOTAL_BYTES to 4096, so this 8 KB PDF is
+	// refused before it reaches R2 and no book is created.
+	await signUp(page);
+	await page.goto("/books/new");
+	await page.getByLabel("Ad", { exact: true }).fill("Çok Büyük Kitap");
+	await page.locator('input[type="file"]').setInputFiles({
+		name: "buyuk.pdf",
+		mimeType: "application/pdf",
+		buffer: Buffer.concat([
+			Buffer.from("%PDF-1.4\n"),
+			Buffer.alloc(8 * 1024, "a"),
+		]),
+	});
+	await page.getByRole("button", { name: "Yükle" }).click();
+
+	await expect(page.getByRole("alert")).toHaveText(
+		"Kitaplığın depolama alanı şu an dolu; yeni yükleme kabul edilmiyor.",
+	);
+	await expect(page).toHaveURL(/\/books\/new$/);
+	await capture(page, info, "upload-limit");
+	await page.goto("/books?q=%C3%87ok%20B%C3%BCy%C3%BCk%20Kitap");
+	await expect(
+		page.getByRole("heading", { name: "Çok Büyük Kitap" }),
+	).toHaveCount(0);
+});
