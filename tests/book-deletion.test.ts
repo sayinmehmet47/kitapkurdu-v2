@@ -12,8 +12,9 @@ import {
 	BookDeletionError,
 	deleteBookWithFile,
 } from "../src/lib/book-deletion";
+import { coverKey } from "../src/lib/cover-image";
 import { createBookWithFile, UploadLimitError } from "../src/lib/uploads";
-import { sampleEpub, samplePdf } from "./fixtures/book-files";
+import { metadataEpub, sampleEpub, samplePdf } from "./fixtures/book-files";
 
 const ROOMY = { maxTotalBytes: 1024 ** 3, maxUploadsPerDay: 100 };
 
@@ -188,6 +189,32 @@ test("owners and admins can delete book files safely; other users cannot", {
 				await db.select().from(book).where(eq(book.id, item.id)).get(),
 				undefined,
 			);
+		},
+	);
+
+	await t.test("an extracted EPUB cover is deleted too", async () => {
+		const item = await upload("Covered EPUB", metadataEpub());
+		assert.ok(item.fileUrl);
+		assert.equal(item.coverThumbnail, `/api/books/${item.id}/cover`);
+		assert.ok(await bucket.head(coverKey(item.id)));
+		await deleteBookWithFile(db, bucket, item.id, owner);
+		assert.equal(await bucket.head(item.fileUrl), null);
+		assert.equal(await bucket.head(coverKey(item.id)), null);
+	});
+
+	await t.test(
+		"a shared file stays, but its unique cover is removed",
+		async () => {
+			const item = await upload("Covered shared EPUB", metadataEpub());
+			assert.ok(item.fileUrl);
+			await db
+				.insert(book)
+				.values({ name: "Covered sibling", fileUrl: item.fileUrl })
+				.returning()
+				.get();
+			await deleteBookWithFile(db, bucket, item.id, owner);
+			assert.ok(await bucket.head(item.fileUrl), "The shared file remains");
+			assert.equal(await bucket.head(coverKey(item.id)), null);
 		},
 	);
 
