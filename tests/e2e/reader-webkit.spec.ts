@@ -34,7 +34,7 @@ test("an EPUB renders inside the iPhone WebKit reader", async ({ page }) => {
 		.toBeGreaterThan(0);
 });
 
-test("a temporary EPUB download error explains the issue and allows retry", async ({
+test("an empty EPUB download explains the issue and allows retry", async ({
 	page,
 }) => {
 	await signUp(page);
@@ -50,9 +50,9 @@ test("a temporary EPUB download error explains the issue and allows retry", asyn
 	await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
 	await page.route("**/api/books/*/download", (route) =>
 		route.fulfill({
-			status: 503,
-			contentType: "text/plain",
-			body: "temporarily unavailable",
+			status: 200,
+			contentType: "application/epub+zip",
+			body: "",
 		}),
 	);
 	await page.getByRole("link", { name: "Kitabı aç", exact: true }).click();
