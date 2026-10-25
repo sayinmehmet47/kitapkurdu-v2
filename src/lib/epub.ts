@@ -11,7 +11,7 @@ import {
 	detectCoverType,
 	MAX_COVER_BYTES,
 } from "#/lib/cover-image";
-import { normalizeIsbn } from "#/lib/isbn";
+import { findIsbn, normalizeIsbn } from "#/lib/isbn";
 
 // Preview is deliberately bounded, not a general-purpose archive extractor.
 export const EPUB_LIMITS = {
@@ -297,9 +297,14 @@ const clean = (value: string | undefined, max = 500) => {
 
 /**
  * Book details from the EPUB's own package document, including its cover
- * image. Never throws: an unreadable EPUB simply yields no details.
+ * image. Never throws: an unreadable EPUB simply yields no details. With
+ * `scanText`, an ISBN missing from the package is looked for in the first and
+ * last chapters (copyright pages); the browser does this, not the Worker.
  */
-export function readEpubMetadata(bytes: Uint8Array): EpubMetadata {
+export function readEpubMetadata(
+	bytes: Uint8Array,
+	{ scanText = false } = {},
+): EpubMetadata {
 	try {
 		const { entries, packagePath, pkg } = openPackage(bytes);
 		const metadata = pkg.children.find((node) => node.name === "metadata");
@@ -316,7 +321,11 @@ export function readEpubMetadata(bytes: Uint8Array): EpubMetadata {
 			.map((node) => clean(node.text))
 			.filter(Boolean);
 		const identifiers = fields("identifier").map((node) => node.text);
-		const isbn = identifiers.map(normalizeIsbn).find(Boolean);
+		const isbn =
+			identifiers.map(normalizeIsbn).find(Boolean) ??
+			(scanText
+				? isbnFromChapters(bytes, entries, packagePath, pkg, manifest)
+				: undefined);
 		const language = first("language")?.toLowerCase();
 		// Descriptions often carry escaped HTML; keep only the text.
 		const subjects = fields("subject")
@@ -352,6 +361,48 @@ export function readEpubMetadata(bytes: Uint8Array): EpubMetadata {
 	} catch {
 		return {};
 	}
+}
+
+const FIRST_CHAPTERS = 6;
+const LAST_CHAPTERS = 3;
+
+function isbnFromChapters(
+	bytes: Uint8Array,
+	entries: Map<string, UnzipFileInfo>,
+	packagePath: string,
+	pkg: XmlNode,
+	manifest: XmlNode | undefined,
+) {
+	const spine = pkg.children.find((node) => node.name === "spine");
+	const paths = (spine?.children ?? [])
+		.filter((node) => node.name === "itemref")
+		.map((ref) =>
+			manifest?.children.find(
+				(node) =>
+					node.name === "item" && node.attributes.id === ref.attributes.idref,
+			),
+		)
+		.filter((item) => item?.attributes.href)
+		.map((item) => item?.attributes.href ?? "");
+	const picked = new Set([
+		...paths.slice(0, FIRST_CHAPTERS),
+		...paths.slice(-LAST_CHAPTERS),
+	]);
+	for (const href of picked) {
+		try {
+			const html = extractText(
+				bytes,
+				entries,
+				resolveEpubPath(packagePath, href),
+				EPUB_LIMITS.chapterBytes,
+			);
+			const isbn = findIsbn(html.replace(/<[^>]*>/g, " "));
+			if (isbn) return isbn;
+		} catch {
+			// An unreadable chapter just has no ISBN.
+		}
+	}
+	return undefined;
 }
 
 function readCover(

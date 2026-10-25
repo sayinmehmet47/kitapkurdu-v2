@@ -6,8 +6,10 @@ import { test } from "node:test";
 import { Miniflare } from "miniflare";
 import { createDb } from "../src/db/index";
 import { book, user } from "../src/db/schema";
+import { BookFileError } from "../src/lib/book-file-format";
 import {
 	createBookWithFile,
+	storeUploadedBook,
 	UPLOAD_LIMITS,
 	UploadLimitError,
 	uploadInput,
@@ -419,6 +421,82 @@ test("book uploads store the file in R2 and the metadata in D1", {
 				UploadLimitError,
 			);
 			assert.equal(await objectCount(), before);
+		},
+	);
+
+	await t.test(
+		"a raw upload is checked after storing and removed when invalid",
+		async () => {
+			// The route passes the request body stream; Miniflare's Node proxy only
+			// accepts known-length bodies, so bytes stand in here (E2E streams).
+			const stream = (bytes: Uint8Array) => bytes;
+			const pdfBytes = new TextEncoder().encode(payload);
+			const stored = await storeUploadedBook({
+				db,
+				bucket,
+				userId: reader.id,
+				details: { name: "Akış" },
+				body: stream(pdfBytes),
+				size: pdfBytes.byteLength,
+				format: "pdf",
+				limits: roomy,
+			});
+			assert.ok(stored.fileUrl?.endsWith(".pdf"));
+			const object = await bucket.get(stored.fileUrl ?? "");
+			assert.ok(object);
+			assert.deepEqual(new Uint8Array(await object.arrayBuffer()), pdfBytes);
+
+			// A wrong claimed format or a non-book file never stays in storage.
+			const before = await objectCount();
+			const rows = (await db.select().from(book)).length;
+			const epubBytes = sampleEpub();
+			for (const [bytes, format] of [
+				[epubBytes, "pdf"],
+				[pdfBytes, "epub"],
+				[new TextEncoder().encode("not a book"), "pdf"],
+			] as const) {
+				await assert.rejects(
+					storeUploadedBook({
+						db,
+						bucket,
+						userId: reader.id,
+						details: { name: "Geçersiz" },
+						body: stream(bytes),
+						size: bytes.byteLength,
+						format,
+						limits: roomy,
+					}),
+					BookFileError,
+				);
+			}
+			// Details are validated and limits checked before anything is written.
+			await assert.rejects(
+				storeUploadedBook({
+					db,
+					bucket,
+					userId: reader.id,
+					details: { name: "" },
+					body: stream(pdfBytes),
+					size: pdfBytes.byteLength,
+					format: "pdf",
+					limits: roomy,
+				}),
+			);
+			await assert.rejects(
+				storeUploadedBook({
+					db,
+					bucket,
+					userId: reader.id,
+					details: { name: "Sınır" },
+					body: stream(pdfBytes),
+					size: pdfBytes.byteLength,
+					format: "pdf",
+					limits: { ...roomy, maxTotalBytes: 1 },
+				}),
+				UploadLimitError,
+			);
+			assert.equal(await objectCount(), before);
+			assert.equal((await db.select().from(book)).length, rows);
 		},
 	);
 });

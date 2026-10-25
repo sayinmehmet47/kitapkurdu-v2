@@ -145,6 +145,16 @@ With the Vite plugin, environment selection happens at **build time**. Do not
 deploy a local build with only `wrangler deploy --env test`; use `deploy:test`.
 The local `npm run dev` and `npm run db:migrate` still use local D1 only.
 
+### Uploads
+
+Book files (PDF or EPUB, up to 95 MB) go to `PUT /api/books/upload` as the raw
+request body; the details travel in the `x-book-details` header. The Worker
+checks the limits first, streams the file to R2, then validates what was stored
+and deletes it if it is not a real PDF/EPUB. Readers may upload 5 books a day;
+admins are exempt, but the storage ceiling applies to everyone. Choosing a file
+reads its details in the browser, including an ISBN printed on the first or
+last pages.
+
 ### Google Books lookup on upload
 
 The upload form's "Bilgileri getir" button and the server-side save fill empty

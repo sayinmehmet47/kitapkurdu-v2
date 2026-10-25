@@ -1,32 +1,25 @@
-import { env } from "cloudflare:workers";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { BookCover } from "#/components/books/BookCover";
 import { Button } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { Textarea } from "#/components/ui/textarea";
-import { createDb } from "#/db";
 import { getAuth } from "#/lib/auth";
+import { BOOK_FILE_ACCEPT, MAX_BOOK_FILE_BYTES } from "#/lib/book-file-format";
+import { lookupBookMetadata } from "#/lib/book-metadata";
+import { metadataConfig } from "#/lib/metadata-config";
 import {
-	BOOK_FILE_ACCEPT,
-	BookFileError,
-	MAX_BOOK_FILE_BYTES,
-} from "#/lib/book-file-format";
-import {
-	type LookupConfig,
-	lookupBookMetadata,
-	type MetadataQuery,
-} from "#/lib/book-metadata";
-import {
-	createBookWithFile,
-	UploadLimitError,
-	uploadInput,
-	uploadLimitsFor,
-} from "#/lib/uploads";
+	DETAILS_HEADER,
+	encodeDetails,
+	FORMAT_HEADER,
+	sniffBookFormat,
+	UPLOAD_PATH,
+	type UploadResponse,
+} from "#/lib/upload-request";
 
 const getUploadContext = createServerFn({ method: "GET" }).handler(async () => {
 	const session = await getAuth().api.getSession({
@@ -34,22 +27,6 @@ const getUploadContext = createServerFn({ method: "GET" }).handler(async () => {
 	});
 	return { isSignedIn: Boolean(session) };
 });
-
-// Optional: GOOGLE_BOOKS_API_KEY (Worker secret) avoids the anonymous quota;
-// GOOGLE_BOOKS_API_URL / OPEN_LIBRARY_API_URL point E2E tests at local stubs.
-function metadataConfig(): LookupConfig {
-	const vars = env as unknown as Partial<
-		Record<
-			"GOOGLE_BOOKS_API_KEY" | "GOOGLE_BOOKS_API_URL" | "OPEN_LIBRARY_API_URL",
-			string
-		>
-	>;
-	return {
-		apiKey: vars.GOOGLE_BOOKS_API_KEY || undefined,
-		apiUrl: vars.GOOGLE_BOOKS_API_URL || undefined,
-		openLibraryUrl: vars.OPEN_LIBRARY_API_URL || undefined,
-	};
-}
 
 const SOURCE_NAMES = { google: "Google Books", openlibrary: "Open Library" };
 
@@ -70,48 +47,12 @@ const lookupMetadata = createServerFn({ method: "POST" })
 		return lookupBookMetadata(data, metadataConfig());
 	});
 
-const submitUpload = createServerFn({ method: "POST" })
-	.validator(uploadInput)
-	.handler(async ({ data }) => {
-		const session = await getAuth().api.getSession({
-			headers: getRequestHeaders(),
-		});
-		if (!session) throw new Error("Sign in before uploading.");
-		try {
-			const row = await createBookWithFile(
-				createDb(env.DB),
-				env.BOOKS,
-				session.user.id,
-				data,
-				uploadLimitsFor(env.UPLOAD_MAX_TOTAL_BYTES),
-				async (query: MetadataQuery) => {
-					const result = await lookupBookMetadata(query, metadataConfig());
-					return result.status === "found" ? result.metadata : null;
-				},
-			);
-			return { ok: true as const, id: row.id };
-		} catch (error) {
-			// Limit rejections are meant for the uploader; anything else stays generic.
-			if (error instanceof UploadLimitError || error instanceof BookFileError) {
-				return { ok: false as const, error: error.message };
-			}
-			throw error;
-		}
-	});
+const MAX_FILE_MB = MAX_BOOK_FILE_BYTES / 1024 ** 2;
 
 export const Route = createFileRoute("/books/new")({
 	loader: async () => getUploadContext(),
 	component: UploadPage,
 });
-
-function readAsBase64(file: File) {
-	return new Promise<string>((resolve, reject) => {
-		const reader = new FileReader();
-		reader.onload = () => resolve(String(reader.result));
-		reader.onerror = () => reject(reader.error);
-		reader.readAsDataURL(file);
-	});
-}
 
 function UploadPage() {
 	const { isSignedIn } = Route.useLoaderData();
@@ -143,10 +84,16 @@ function UploadPage() {
 	);
 	const [error, setError] = useState<string | null>(null);
 	const [submitting, setSubmitting] = useState(false);
-	// Tests and slow devices must not type into controlled inputs before React
-	// has attached their state, or hydration will reset the typed values.
+	// The server-rendered form stays disabled until React can hold its values;
+	// a file picked before that (a slow phone) is read once hydrated.
 	const [hydrated, setHydrated] = useState(false);
-	useEffect(() => setHydrated(true), []);
+	const fileInput = useRef<HTMLInputElement>(null);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: runs once, on hydration.
+	useEffect(() => {
+		setHydrated(true);
+		const early = fileInput.current?.files?.[0];
+		if (early) handleFile(early);
+	}, []);
 
 	if (!isSignedIn) {
 		return (
@@ -189,15 +136,18 @@ function UploadPage() {
 		description: "açıklama",
 		category: "kategoriler",
 	};
-	// Fill only empty fields, so nothing the uploader typed is overwritten.
+	// Fill only empty fields, so nothing the uploader typed is overwritten;
+	// `replace` names fields that only hold a guess (a title from the file name).
 	const fillEmpty = (
 		fields: Fields,
 		found: Partial<Record<keyof Fields, string | undefined>>,
+		replace: ReadonlySet<keyof Fields> = new Set(),
 	) => {
 		const filled: string[] = [];
 		for (const key of Object.keys(setters) as (keyof Fields)[]) {
 			const next = found[key]?.trim();
-			if (!fields[key].trim() && next) {
+			const current = fields[key].trim();
+			if (next && (!current || (replace.has(key) && next !== current))) {
 				fields[key] = next;
 				setters[key](next);
 				filled.push(labels[key]);
@@ -211,7 +161,10 @@ function UploadPage() {
 		fields: Fields,
 		hasCover: boolean,
 		prefix: string,
-		{ always = false } = {},
+		{
+			always = false,
+			replace = new Set<keyof Fields>(),
+		}: { always?: boolean; replace?: ReadonlySet<keyof Fields> } = {},
 	) => {
 		const say = (message: string) =>
 			setLookupStatus([prefix, message].filter(Boolean).join(" "));
@@ -241,14 +194,18 @@ function UploadPage() {
 			if (result.status === "not-found")
 				return say("Çevrimiçi eşleşen kitap bulunamadı.");
 			const found = result.metadata;
-			const filled = fillEmpty(fields, {
-				name: found.title,
-				author: found.author,
-				publisher: found.publisher,
-				isbn: found.isbn,
-				description: found.description,
-				category: found.categories?.join(", "),
-			});
+			const filled = fillEmpty(
+				fields,
+				{
+					name: found.title,
+					author: found.author,
+					publisher: found.publisher,
+					isbn: found.isbn,
+					description: found.description,
+					category: found.categories?.join(", "),
+				},
+				replace,
+			);
 			if (!hasCover && !coverRemoved && found.coverThumbnail) {
 				setCover(found.coverThumbnail);
 				filled.push("kapak");
@@ -291,9 +248,12 @@ function UploadPage() {
 		const fields = currentFields();
 		let filled: string[] = [];
 		let hasCover = Boolean(fileCover || cover);
+		const guessed = new Set<keyof Fields>();
 		try {
 			const { readFileMetadata } = await import("#/lib/book-file-metadata");
 			const metadata = await readFileMetadata(next);
+			if (metadata.titleFromFileName && !fields.name.trim())
+				guessed.add("name");
 			filled = fillEmpty(fields, {
 				name: metadata.title,
 				author: metadata.author,
@@ -324,6 +284,7 @@ function UploadPage() {
 			fields,
 			hasCover,
 			filled.length > 0 ? `Dosyadan okundu: ${filled.join(", ")}.` : "",
+			{ replace: guessed },
 		);
 	};
 
@@ -334,28 +295,37 @@ function UploadPage() {
 			return;
 		}
 		if (file.size > MAX_BOOK_FILE_BYTES) {
-			setError("Dosya çok büyük (en fazla 25 MB).");
+			setError(`Dosya çok büyük (en fazla ${MAX_FILE_MB} MB).`);
 			return;
 		}
 		setSubmitting(true);
 		setError(null);
 		try {
-			const fileBase64 = await readAsBase64(file);
-			const result = await submitUpload({
-				data: {
-					name,
-					author,
-					publisher,
-					isbn,
-					description,
-					category,
-					language,
-					coverThumbnail: cover ?? undefined,
-					coverRemoved,
-					fileName: file.name,
-					fileBase64,
+			const format = await sniffBookFormat(file);
+			if (!format) {
+				setError("Yalnızca PDF veya EPUB dosyaları yüklenebilir.");
+				return;
+			}
+			// The file is the raw body: the Worker streams it to storage.
+			const response = await fetch(UPLOAD_PATH, {
+				method: "PUT",
+				headers: {
+					[FORMAT_HEADER]: format,
+					[DETAILS_HEADER]: encodeDetails({
+						name,
+						author,
+						publisher,
+						isbn,
+						description,
+						category,
+						language,
+						coverThumbnail: cover ?? undefined,
+						coverRemoved,
+					}),
 				},
+				body: file,
 			});
+			const result = (await response.json()) as UploadResponse;
 			if (!result.ok) {
 				setError(result.error);
 				return;
@@ -385,141 +355,146 @@ function UploadPage() {
 				<form
 					onSubmit={handleSubmit}
 					data-hydrated={hydrated ? "true" : undefined}
-					className="mt-8 space-y-4"
+					className="mt-8"
 				>
-					<div className="space-y-1.5">
-						<Label htmlFor="file">PDF veya EPUB dosyası (en fazla 25 MB)</Label>
-						<Input
-							id="file"
-							type="file"
-							accept={BOOK_FILE_ACCEPT}
-							onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
-						/>
-					</div>
+					<fieldset disabled={!hydrated} className="min-w-0 space-y-4">
+						<div className="space-y-1.5">
+							<Label htmlFor="file">
+								PDF veya EPUB dosyası (en fazla {MAX_FILE_MB} MB)
+							</Label>
+							<Input
+								ref={fileInput}
+								id="file"
+								type="file"
+								accept={BOOK_FILE_ACCEPT}
+								onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
+							/>
+						</div>
 
-					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-						<div className="space-y-1.5">
-							<Label htmlFor="name">Ad</Label>
-							<Input
-								id="name"
-								value={name}
-								onChange={(e) => setName(e.target.value)}
-								required
-							/>
-						</div>
-						<div className="space-y-1.5">
-							<Label htmlFor="author">Yazar</Label>
-							<Input
-								id="author"
-								value={author}
-								onChange={(e) => setAuthor(e.target.value)}
-							/>
-						</div>
-						<div className="space-y-1.5">
-							<Label htmlFor="publisher">Yayınevi</Label>
-							<Input
-								id="publisher"
-								value={publisher}
-								onChange={(e) => setPublisher(e.target.value)}
-							/>
-						</div>
-						<div className="space-y-1.5">
-							<Label htmlFor="isbn">ISBN</Label>
-							<Input
-								id="isbn"
-								value={isbn}
-								onChange={(e) => setIsbn(e.target.value)}
-							/>
-						</div>
-						<div className="space-y-1.5">
-							<Label htmlFor="category">Kategoriler (virgülle)</Label>
-							<Input
-								id="category"
-								value={category}
-								onChange={(e) => setCategory(e.target.value)}
-							/>
-						</div>
-						<div className="space-y-1.5">
-							<Label htmlFor="language">Dil</Label>
-							<select
-								id="language"
-								value={language}
-								onChange={(e) =>
-									setLanguage(e.target.value as "turkish" | "english")
-								}
-								className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-							>
-								<option value="turkish">Türkçe</option>
-								<option value="english">English</option>
-							</select>
-						</div>
-					</div>
-
-					<div className="flex items-start gap-4 rounded-md border border-dashed border-border p-4">
-						{fileCover || cover ? (
-							<BookCover
-								name={name}
-								author={author}
-								src={fileCover ?? cover}
-								priority
-								className="w-16 shrink-0"
-							/>
-						) : null}
-						<div className="grid gap-3">
-							<output className="block text-sm text-muted-foreground">
-								{reading ? "Dosya okunuyor…" : lookupStatus}
-							</output>
-							<div className="flex flex-wrap gap-2">
-								<Button
-									type="button"
-									variant="outline"
-									onClick={handleLookup}
-									disabled={
-										reading || looking || (!isbn.trim() && !name.trim())
+						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+							<div className="space-y-1.5">
+								<Label htmlFor="name">Ad</Label>
+								<Input
+									id="name"
+									value={name}
+									onChange={(e) => setName(e.target.value)}
+									required
+								/>
+							</div>
+							<div className="space-y-1.5">
+								<Label htmlFor="author">Yazar</Label>
+								<Input
+									id="author"
+									value={author}
+									onChange={(e) => setAuthor(e.target.value)}
+								/>
+							</div>
+							<div className="space-y-1.5">
+								<Label htmlFor="publisher">Yayınevi</Label>
+								<Input
+									id="publisher"
+									value={publisher}
+									onChange={(e) => setPublisher(e.target.value)}
+								/>
+							</div>
+							<div className="space-y-1.5">
+								<Label htmlFor="isbn">ISBN</Label>
+								<Input
+									id="isbn"
+									value={isbn}
+									onChange={(e) => setIsbn(e.target.value)}
+								/>
+							</div>
+							<div className="space-y-1.5">
+								<Label htmlFor="category">Kategoriler (virgülle)</Label>
+								<Input
+									id="category"
+									value={category}
+									onChange={(e) => setCategory(e.target.value)}
+								/>
+							</div>
+							<div className="space-y-1.5">
+								<Label htmlFor="language">Dil</Label>
+								<select
+									id="language"
+									value={language}
+									onChange={(e) =>
+										setLanguage(e.target.value as "turkish" | "english")
 									}
+									className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
 								>
-									{looking ? "Aranıyor…" : "Bilgileri getir"}
-								</Button>
-								{fileCover || cover ? (
-									<Button
-										type="button"
-										variant="ghost"
-										onClick={() => {
-											setCover(null);
-											setFileCover(null);
-											setCoverRemoved(true);
-										}}
-									>
-										Kapağı kaldır
-									</Button>
-								) : null}
+									<option value="turkish">Türkçe</option>
+									<option value="english">English</option>
+								</select>
 							</div>
 						</div>
-					</div>
 
-					<div className="space-y-1.5">
-						<Label htmlFor="description">Açıklama</Label>
-						<Textarea
-							id="description"
-							value={description}
-							onChange={(e) => setDescription(e.target.value)}
-							rows={4}
-						/>
-					</div>
+						<div className="flex items-start gap-4 rounded-md border border-dashed border-border p-4">
+							{fileCover || cover ? (
+								<BookCover
+									name={name}
+									author={author}
+									src={fileCover ?? cover}
+									priority
+									className="w-16 shrink-0"
+								/>
+							) : null}
+							<div className="grid gap-3">
+								<output className="block text-sm text-muted-foreground">
+									{reading ? "Dosya okunuyor…" : lookupStatus}
+								</output>
+								<div className="flex flex-wrap gap-2">
+									<Button
+										type="button"
+										variant="outline"
+										onClick={handleLookup}
+										disabled={
+											reading || looking || (!isbn.trim() && !name.trim())
+										}
+									>
+										{looking ? "Aranıyor…" : "Bilgileri getir"}
+									</Button>
+									{fileCover || cover ? (
+										<Button
+											type="button"
+											variant="ghost"
+											onClick={() => {
+												setCover(null);
+												setFileCover(null);
+												setCoverRemoved(true);
+											}}
+										>
+											Kapağı kaldır
+										</Button>
+									) : null}
+								</div>
+							</div>
+						</div>
 
-					{error ? (
-						<p role="alert" className="text-sm text-destructive">
-							{error}
-						</p>
-					) : null}
+						<div className="space-y-1.5">
+							<Label htmlFor="description">Açıklama</Label>
+							<Textarea
+								id="description"
+								value={description}
+								onChange={(e) => setDescription(e.target.value)}
+								rows={4}
+							/>
+						</div>
 
-					<Button type="submit" disabled={submitting || reading || looking}>
-						{submitting
-							? "Yükleniyor…"
-							: reading || looking
-								? "Bilgiler hazırlanıyor…"
-								: "Yükle"}
-					</Button>
+						{error ? (
+							<p role="alert" className="text-sm text-destructive">
+								{error}
+							</p>
+						) : null}
+
+						<Button type="submit" disabled={submitting || reading || looking}>
+							{submitting
+								? "Yükleniyor…"
+								: reading || looking
+									? "Bilgiler hazırlanıyor…"
+									: "Yükle"}
+						</Button>
+					</fieldset>
 				</form>
 			</section>
 		</main>
