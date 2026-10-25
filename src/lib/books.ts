@@ -1,4 +1,4 @@
-import { and, count, desc, isNull, like, or } from "drizzle-orm";
+import { and, count, desc, eq, isNull, like, or } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "#/db";
 import { book } from "#/db/schema";
@@ -46,4 +46,12 @@ export async function listBooks(db: Database, input: unknown) {
 		limit,
 		pageCount: Math.max(1, Math.ceil(total / limit)),
 	};
+}
+
+export async function getBookById(db: Database, id: string) {
+	return db
+		.select()
+		.from(book)
+		.where(and(eq(book.id, id), isNull(book.duplicateOfId)))
+		.get();
 }

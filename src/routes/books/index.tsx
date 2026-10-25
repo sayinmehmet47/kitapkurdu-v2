@@ -8,26 +8,26 @@ const getBooks = createServerFn({ method: "GET" })
 	.validator(bookPageInput)
 	.handler(async ({ data }) => listBooks(createDb(env.DB), data));
 
-type Search = { page: number; q?: string };
+type Search = { page?: number; q?: string };
 
-export const Route = createFileRoute("/books")({
+export const Route = createFileRoute("/books/")({
 	validateSearch: (search: Record<string, unknown>): Search => {
 		const raw = Number(search.page);
-		const page = Number.isInteger(raw) && raw >= 1 ? raw : 1;
+		const page = Number.isInteger(raw) && raw >= 1 ? raw : undefined;
 		const q =
 			typeof search.q === "string" && search.q.trim()
 				? search.q.trim()
 				: undefined;
 		return { page, q };
 	},
-	loaderDeps: ({ search }) => ({ page: search.page, q: search.q }),
+	loaderDeps: ({ search }) => ({ page: search.page ?? 1, q: search.q }),
 	loader: async ({ deps }) =>
 		getBooks({ data: { page: deps.page, limit: 12, q: deps.q } }),
 	component: BooksPage,
 });
 
 function BooksPage() {
-	const { page, q } = Route.useSearch();
+	const { page = 1, q } = Route.useSearch();
 	const navigate = useNavigate();
 	const { results, total, pageCount } = Route.useLoaderData();
 
@@ -106,7 +106,15 @@ function BooksPage() {
 									</div>
 								)}
 								<div>
-									<h2 className="font-semibold">{item.name}</h2>
+									<h2 className="font-semibold">
+										<Link
+											to="/books/$id"
+											params={{ id: item.id }}
+											className="hover:underline"
+										>
+											{item.name}
+										</Link>
+									</h2>
 									{item.author ? (
 										<p className="demo-muted text-sm">{item.author}</p>
 									) : null}
