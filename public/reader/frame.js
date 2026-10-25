@@ -191,7 +191,10 @@ async function open() {
 	});
 	applySettings();
 	progress("position");
-	await view.init({ lastLocation: resetPosition ? null : storage("get"), showTextStart: true });
+	await view.init({
+		lastLocation: resetPosition ? null : storage("get"),
+		showTextStart: true,
+	});
 	status.remove();
 	readyMessage = { type: "ready", toc: tocItems(view.book.toc) };
 	post(readyMessage);
