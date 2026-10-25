@@ -53,6 +53,7 @@ const lookupMetadata = createServerFn({ method: "POST" })
 		z.object({
 			isbn: z.string().trim().max(32).optional(),
 			name: z.string().trim().max(200).optional(),
+			author: z.string().trim().max(200).optional(),
 		}),
 	)
 	.handler(async ({ data }) => {
@@ -119,6 +120,8 @@ function UploadPage() {
 	const [language, setLanguage] = useState<"turkish" | "english">("turkish");
 	const [file, setFile] = useState<File | null>(null);
 	const [cover, setCover] = useState<string | null>(null);
+	// Once removed, a suggested cover is not offered or added again.
+	const [coverRemoved, setCoverRemoved] = useState(false);
 	const [looking, setLooking] = useState(false);
 	const [lookupStatus, setLookupStatus] = useState(
 		"ISBN ya da adı yazıp kitap bilgilerini otomatik getirebilirsin.",
@@ -147,7 +150,7 @@ function UploadPage() {
 	const handleLookup = async () => {
 		setLooking(true);
 		try {
-			const result = await lookupMetadata({ data: { isbn, name } });
+			const result = await lookupMetadata({ data: { isbn, name, author } });
 			if (result.status === "unavailable") {
 				setLookupStatus(
 					"Kitap bilgileri şu an getirilemiyor; formu elle doldurabilirsin.",
@@ -177,7 +180,7 @@ function UploadPage() {
 			fill(isbn, found.isbn, setIsbn, "ISBN");
 			fill(description, found.description, setDescription, "açıklama");
 			fill(category, found.categories?.join(", "), setCategory, "kategoriler");
-			if (!cover && found.coverThumbnail) {
+			if (!cover && !coverRemoved && found.coverThumbnail) {
 				setCover(found.coverThumbnail);
 				filled.push("kapak");
 			}
@@ -215,6 +218,7 @@ function UploadPage() {
 					category,
 					language,
 					coverThumbnail: cover ?? undefined,
+					coverRemoved,
 					fileName: file.name,
 					fileBase64,
 				},
@@ -318,15 +322,28 @@ function UploadPage() {
 							<output className="block text-sm text-muted-foreground">
 								{lookupStatus}
 							</output>
-							<Button
-								type="button"
-								variant="outline"
-								className="justify-self-start"
-								onClick={handleLookup}
-								disabled={looking || (!isbn.trim() && !name.trim())}
-							>
-								{looking ? "Aranıyor…" : "Bilgileri getir"}
-							</Button>
+							<div className="flex flex-wrap gap-2">
+								<Button
+									type="button"
+									variant="outline"
+									onClick={handleLookup}
+									disabled={looking || (!isbn.trim() && !name.trim())}
+								>
+									{looking ? "Aranıyor…" : "Bilgileri getir"}
+								</Button>
+								{cover ? (
+									<Button
+										type="button"
+										variant="ghost"
+										onClick={() => {
+											setCover(null);
+											setCoverRemoved(true);
+										}}
+									>
+										Kapağı kaldır
+									</Button>
+								) : null}
+							</div>
 						</div>
 					</div>
 

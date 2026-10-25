@@ -316,3 +316,81 @@ test("title-only records are skipped in favour of the richest match", async () =
 		status: "not-found",
 	});
 });
+
+test("covers come only from reliable matches", async () => {
+	// ISBN search: the cover is the exact edition's, and missing covers stay missing.
+	const byIsbn = stub({
+		google: [{ body: { totalItems: 0 } }],
+		openLibrary: [{ body: { docs: [work] } }],
+	});
+	const isbnResult = await lookupBookMetadata(
+		{ isbn: "9789754700114" },
+		byIsbn.config,
+	);
+	const isbnMetadata =
+		isbnResult.status === "found" ? isbnResult.metadata : null;
+	assert.equal(
+		isbnMetadata?.coverThumbnail,
+		"https://covers.openlibrary.org/b/isbn/9789754700114-M.jpg?default=false",
+	);
+	assert.equal(
+		isbnMetadata?.coverSmallThumbnail,
+		"https://covers.openlibrary.org/b/isbn/9789754700114-S.jpg?default=false",
+	);
+
+	// Title search: a different book is not a match at all.
+	const otherBook = stub({
+		google: [
+			{
+				body: {
+					items: [{ volumeInfo: { ...volume, title: "Madonna: A Biography" } }],
+				},
+			},
+		],
+		openLibrary: [
+			{ body: { docs: [{ ...work, title: "Tutunamayanlar Üzerine" }] } },
+		],
+	});
+	assert.deepEqual(
+		await lookupBookMetadata({ name: "Tutunamayanlar" }, otherBook.config),
+		{ status: "not-found" },
+	);
+
+	// Title search matches ignore case, accents and punctuation.
+	const accents = stub({
+		google: [unavailable, unavailable],
+		openLibrary: [
+			{ body: { docs: [{ ...work, title: "Kurk mantolu madonna!" }] } },
+		],
+	});
+	const accentResult = await lookupBookMetadata(
+		{ name: "Kürk Mantolu Madonna" },
+		accents.config,
+	);
+	assert.equal(accentResult.status, "found");
+
+	// A typed author must agree with the record's author.
+	const wrongAuthor = stub({
+		google: [{ body: { items: [{ volumeInfo: volume }] } }],
+		openLibrary: [{ body: { docs: [] } }],
+	});
+	assert.deepEqual(
+		await lookupBookMetadata(
+			{ name: "Kürk Mantolu Madonna", author: "Orhan Pamuk" },
+			wrongAuthor.config,
+		),
+		{ status: "not-found" },
+	);
+	const rightAuthor = stub({
+		google: [{ body: { items: [{ volumeInfo: volume }] } }],
+	});
+	assert.equal(
+		(
+			await lookupBookMetadata(
+				{ name: "Kürk Mantolu Madonna", author: "sabahattin ali" },
+				rightAuthor.config,
+			)
+		).status,
+		"found",
+	);
+});

@@ -225,6 +225,7 @@ test("book uploads store the file in R2 and the metadata in D1", {
 	assert.deepEqual(queries.at(-1), {
 		isbn: undefined,
 		name: "Kürk Mantolu Madonna",
+		author: undefined,
 	});
 	assert.equal(enriched.author, "Sabahattin Ali");
 	assert.equal(enriched.publisher, "Yapı Kredi Yayınları");
@@ -248,7 +249,11 @@ test("book uploads store the file in R2 and the metadata in D1", {
 		roomy,
 		lookup,
 	);
-	assert.deepEqual(queries.at(-1), { isbn: "123", name: "Elle Yazılmış" });
+	assert.deepEqual(queries.at(-1), {
+		isbn: "123",
+		name: "Elle Yazılmış",
+		author: "Elle Yazar",
+	});
 	assert.equal(typed.author, "Elle Yazar", "Typed author is kept");
 	assert.deepEqual(typed.category, ["Roman"], "Typed categories are kept");
 	assert.equal(typed.isbn, "123", "Typed ISBN is kept");
@@ -292,6 +297,24 @@ test("book uploads store the file in R2 and the metadata in D1", {
 		lookup,
 	);
 	assert.equal(queries.length, callsBefore, "Complete uploads skip the lookup");
+
+	// A cover the uploader removed in the form is not added back on save.
+	const noCover = await createBookWithFile(
+		db,
+		bucket,
+		reader.id,
+		{ ...pdf("Kapaksız"), coverRemoved: true },
+		roomy,
+		lookup,
+	);
+	assert.equal(noCover.coverThumbnail, null);
+	assert.equal(noCover.coverSmallThumbnail, null);
+	assert.equal(noCover.author, "Sabahattin Ali", "Other fields still fill");
+	assert.deepEqual(queries.at(-1), {
+		isbn: undefined,
+		name: "Kapaksız",
+		author: undefined,
+	});
 	assert.equal(
 		complete.coverThumbnail,
 		"https://books.google.com/books/content?id=z",
