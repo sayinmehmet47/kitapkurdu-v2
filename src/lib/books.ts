@@ -1,4 +1,14 @@
-import { and, count, desc, eq, isNull, like, or, type SQL } from "drizzle-orm";
+import {
+	and,
+	count,
+	desc,
+	eq,
+	isNull,
+	like,
+	or,
+	type SQL,
+	sql,
+} from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "#/db";
 import { book } from "#/db/schema";
@@ -18,15 +28,17 @@ export async function listBooks(db: Database, input: unknown) {
 	const conditions: (SQL<unknown> | undefined)[] = [isNull(book.duplicateOfId)];
 
 	if (q) {
-		// D1 has no full-text index; MVP uses LIKE (case-insensitive for ASCII).
-		// Turkish accent folding and FTS5 are a follow-up.
+		// Literal substring search avoids D1's short LIKE-pattern byte limit.
+		// SQLite lower() folds ASCII only; Turkish accent folding remains a follow-up.
 		conditions.push(
 			or(
-				like(book.name, `%${q}%`),
-				like(book.author, `%${q}%`),
-				like(book.description, `%${q}%`),
-				like(book.isbn, `%${q}%`),
-				like(book.publisher, `%${q}%`),
+				...[
+					book.name,
+					book.author,
+					book.description,
+					book.isbn,
+					book.publisher,
+				].map((column) => sql`instr(lower(${column}), lower(${q})) > 0`),
 			),
 		);
 	}

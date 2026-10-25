@@ -1,4 +1,9 @@
+import { randomBytes } from "node:crypto";
 import { defineConfig, devices } from "@playwright/test";
+
+// Share a fresh synthetic admin password with the isolated server and test
+// workers. This is never written to the app configuration or a real database.
+process.env.E2E_ADMIN_PASSWORD ??= randomBytes(24).toString("base64url");
 
 export default defineConfig({
 	testDir: "./tests/e2e",

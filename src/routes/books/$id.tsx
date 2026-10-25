@@ -287,43 +287,53 @@ function AdminPanel({
 	};
 
 	return (
-		<section aria-labelledby="admin-heading" className="mt-16 border-t border-border pt-10">
-			<h2 id="admin-heading" className="mb-6 text-2xl font-semibold">Yönetici</h2>
+		<section
+			aria-labelledby="admin-heading"
+			className="mt-16 border-t border-border pt-10"
+		>
+			<h2 id="admin-heading" className="mb-6 text-2xl font-semibold">
+				Yönetici
+			</h2>
 
 			<div className="rounded-md border border-border bg-card p-4 sm:p-6">
 				<form onSubmit={save} className="space-y-3">
 					<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-						<label className="text-sm">
+						<label htmlFor="admin-name" className="text-sm">
 							<span className="mb-1 block font-semibold">Ad</span>
 							<Input
+								id="admin-name"
 								value={name}
 								onChange={(e) => setName(e.target.value)}
 							/>
 						</label>
-						<label className="text-sm">
+						<label htmlFor="admin-author" className="text-sm">
 							<span className="mb-1 block font-semibold">Yazar</span>
 							<Input
+								id="admin-author"
 								value={author}
 								onChange={(e) => setAuthor(e.target.value)}
 							/>
 						</label>
-						<label className="text-sm">
+						<label htmlFor="admin-publisher" className="text-sm">
 							<span className="mb-1 block font-semibold">Yayınevi</span>
 							<Input
+								id="admin-publisher"
 								value={publisher}
 								onChange={(e) => setPublisher(e.target.value)}
 							/>
 						</label>
-						<label className="text-sm">
+						<label htmlFor="admin-isbn" className="text-sm">
 							<span className="mb-1 block font-semibold">ISBN</span>
 							<Input
+								id="admin-isbn"
 								value={isbn}
 								onChange={(e) => setIsbn(e.target.value)}
 							/>
 						</label>
-						<label className="text-sm">
+						<label htmlFor="admin-language" className="text-sm">
 							<span className="mb-1 block font-semibold">Dil</span>
 							<select
+								id="admin-language"
 								value={language}
 								onChange={(e) =>
 									setLanguage(e.target.value as "turkish" | "english")
@@ -334,27 +344,27 @@ function AdminPanel({
 								<option value="english">English</option>
 							</select>
 						</label>
-						<label className="text-sm">
+						<label htmlFor="admin-category" className="text-sm">
 							<span className="mb-1 block font-semibold">
 								Kategoriler (virgülle)
 							</span>
 							<Input
+								id="admin-category"
 								value={category}
 								onChange={(e) => setCategory(e.target.value)}
 							/>
 						</label>
 					</div>
-					<label className="block text-sm">
+					<label htmlFor="admin-description" className="block text-sm">
 						<span className="mb-1 block font-semibold">Açıklama</span>
 						<Textarea
+							id="admin-description"
 							value={description}
 							onChange={(e) => setDescription(e.target.value)}
 							rows={3}
 						/>
 					</label>
-					<Button type="submit">
-						Kaydet
-					</Button>
+					<Button type="submit">Kaydet</Button>
 				</form>
 			</div>
 
@@ -374,16 +384,16 @@ function AdminPanel({
 			</div>
 
 			<div className="mt-4 rounded-md border border-border bg-card p-4 sm:p-6">
-				<Button
-					type="button"
-					onClick={remove}
-					variant="destructive"
-				>
+				<Button type="button" onClick={remove} variant="destructive">
 					Kitabı sil
 				</Button>
 			</div>
 
-			{error ? <p role="alert" className="mt-2 text-sm text-destructive">{error}</p> : null}
+			{error ? (
+				<p role="alert" className="mt-2 text-sm text-destructive">
+					{error}
+				</p>
+			) : null}
 		</section>
 	);
 }
