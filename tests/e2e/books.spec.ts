@@ -43,3 +43,32 @@ test("books without an image get a generated cover that opens the book", async (
 	await expect(page).toHaveURL(/\/books\/seed-sefiller$/);
 	await expect(page.getByRole("heading", { name: "Sefiller" })).toBeVisible();
 });
+
+test("a long one-word title fits the generated cover without breaking mid-word", async ({
+	page,
+}) => {
+	// Small covers (home shelf) and catalog covers both have to fit the word.
+	for (const path of ["/", "/books"]) {
+		await page.goto(path);
+		const title = page
+			.getByRole("article")
+			.filter({
+				has: page.getByRole("heading", { name: "Tutunamayanlar", exact: true }),
+			})
+			.locator('[data-slot="book-cover"] [data-text="Tutunamayanlar"]');
+		await expect(title).toHaveCount(1);
+		const layout = await title.evaluate((element) => {
+			const lineHeight = Number.parseFloat(
+				getComputedStyle(element).lineHeight,
+			);
+			return {
+				lines: Math.round(element.getBoundingClientRect().height / lineHeight),
+				overflows: element.scrollWidth > element.clientWidth,
+			};
+		});
+		expect(layout, `${path}: title should be one unbroken line`).toEqual({
+			lines: 1,
+			overflows: false,
+		});
+	}
+});

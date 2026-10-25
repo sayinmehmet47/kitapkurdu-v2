@@ -61,7 +61,8 @@ delete env.CLOUDFLARE_ENV;
 const seedBooks = `INSERT INTO book (id, name, author, category, language, description) VALUES
 ('seed-sefiller', 'Sefiller', 'Victor Hugo', '["Roman","Klasik"]', 'turkish', 'Klasik bir roman.'),
 ('seed-suc-ve-ceza', 'Suç ve Ceza', 'Fyodor Dostoyevski', '["Roman"]', 'turkish', 'Psikolojik bir roman.'),
-('seed-1984', '1984', 'George Orwell', '["Bilim Kurgu"]', 'english', 'Distopik bir roman.');`;
+('seed-1984', '1984', 'George Orwell', '["Bilim Kurgu"]', 'english', 'Distopik bir roman.'),
+('seed-tutunamayanlar', 'Tutunamayanlar', 'Oğuz Atay', '["Roman"]', 'turkish', 'Uzun, tek kelimelik bir başlık.');`;
 
 let child;
 let stopping = false;
