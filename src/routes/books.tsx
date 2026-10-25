@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { createDb } from "#/db";
 import { bookPageInput, listBooks } from "#/lib/books";
@@ -8,22 +8,27 @@ const getBooks = createServerFn({ method: "GET" })
 	.validator(bookPageInput)
 	.handler(async ({ data }) => listBooks(createDb(env.DB), data));
 
-type Search = { page: number };
+type Search = { page: number; q?: string };
 
 export const Route = createFileRoute("/books")({
 	validateSearch: (search: Record<string, unknown>): Search => {
 		const raw = Number(search.page);
 		const page = Number.isInteger(raw) && raw >= 1 ? raw : 1;
-		return { page };
+		const q =
+			typeof search.q === "string" && search.q.trim()
+				? search.q.trim()
+				: undefined;
+		return { page, q };
 	},
-	loaderDeps: ({ search }) => ({ page: search.page }),
+	loaderDeps: ({ search }) => ({ page: search.page, q: search.q }),
 	loader: async ({ deps }) =>
-		getBooks({ data: { page: deps.page, limit: 12 } }),
+		getBooks({ data: { page: deps.page, limit: 12, q: deps.q } }),
 	component: BooksPage,
 });
 
 function BooksPage() {
-	const { page } = Route.useSearch();
+	const { page, q } = Route.useSearch();
+	const navigate = useNavigate();
 	const { results, total, pageCount } = Route.useLoaderData();
 
 	return (
@@ -32,12 +37,58 @@ function BooksPage() {
 				<header className="mb-8">
 					<p className="island-kicker mb-2">Kitaplık</p>
 					<h1 className="demo-title">Kitaplar</h1>
-					<p className="demo-muted mt-2">{total} kitap listeleniyor.</p>
+					<p className="demo-muted mt-2">
+						{q ? (
+							<>
+								“{q}” için {total} sonuç.
+							</>
+						) : (
+							<>{total} kitap listeleniyor.</>
+						)}
+					</p>
 				</header>
+
+				<form
+					onSubmit={(event) => {
+						event.preventDefault();
+						const value = String(
+							new FormData(event.currentTarget).get("q") ?? "",
+						).trim();
+						navigate({
+							to: "/books",
+							search: value ? { page: 1, q: value } : { page: 1 },
+						});
+					}}
+					className="mb-6 flex flex-col gap-2 sm:flex-row"
+				>
+					<input
+						key={q ?? ""}
+						type="search"
+						name="q"
+						aria-label="Kitap ara"
+						defaultValue={q ?? ""}
+						placeholder="Kitap, yazar veya açıklama ara..."
+						className="demo-input min-w-0 flex-1"
+					/>
+					<button type="submit" className="demo-button whitespace-nowrap">
+						Ara
+					</button>
+					{q ? (
+						<Link
+							to="/books"
+							search={{ page: 1 }}
+							className="demo-button whitespace-nowrap"
+						>
+							Temizle
+						</Link>
+					) : null}
+				</form>
 
 				{results.length === 0 ? (
 					<p className="demo-muted py-16 text-center">
-						Henüz kitap eklenmemiş.
+						{q
+							? "Bu aramayla eşleşen kitap bulunamadı."
+							: "Henüz kitap eklenmemiş."}
 					</p>
 				) : (
 					<ul className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -82,7 +133,7 @@ function BooksPage() {
 						{page > 1 ? (
 							<Link
 								to="/books"
-								search={{ page: page - 1 }}
+								search={{ page: page - 1, ...(q ? { q } : {}) }}
 								className="demo-button"
 							>
 								← Önceki
@@ -96,7 +147,7 @@ function BooksPage() {
 						{page < pageCount ? (
 							<Link
 								to="/books"
-								search={{ page: page + 1 }}
+								search={{ page: page + 1, ...(q ? { q } : {}) }}
 								className="demo-button"
 							>
 								Sonraki →
