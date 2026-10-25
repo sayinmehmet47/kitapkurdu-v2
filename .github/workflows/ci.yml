@@ -34,7 +34,7 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
       - name: Install Chromium and browser system dependencies
-        run: npm exec -- playwright install --with-deps chromium
+        run: npm exec -- playwright install --with-deps chromium webkit
       - name: Verify source, types, database behavior, build, and real browsers
         run: npm run verify
       - name: Save browser report and evidence
