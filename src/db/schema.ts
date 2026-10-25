@@ -114,3 +114,47 @@ export const todos = sqliteTable(
 		index("todos_user_created_idx").on(table.userId, table.createdAt),
 	],
 );
+
+export const book = sqliteTable(
+	"book",
+	{
+		id: text("id")
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		name: text("name").notNull(),
+		author: text("author"),
+		isbn: text("isbn"),
+		publisher: text("publisher"),
+		description: text("description"),
+		category: text("category", { mode: "json" })
+			.$type<string[]>()
+			.default(sql`'[]'`),
+		language: text("language", { enum: ["turkish", "english"] })
+			.notNull()
+			.default("turkish"),
+		fileUrl: text("file_url"),
+		size: integer("size"),
+		coverSmallThumbnail: text("cover_small_thumbnail"),
+		coverThumbnail: text("cover_thumbnail"),
+		uploaderId: text("uploader_id").references(() => user.id, {
+			onDelete: "set null",
+		}),
+		// Soft-hide: when set, this book is a duplicate of the referenced
+		// canonical book and is hidden from public listings. A plain text
+		// reference (not a foreign key) so duplicate audit can point at any id.
+		duplicateOfId: text("duplicate_of_id"),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(now)
+			.notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.default(now)
+			.$onUpdate(() => new Date())
+			.notNull(),
+	},
+	(table) => [
+		index("book_name_idx").on(table.name),
+		index("book_author_idx").on(table.author),
+		index("book_uploader_idx").on(table.uploaderId),
+		index("book_created_idx").on(table.createdAt),
+	],
+);
