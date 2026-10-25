@@ -17,7 +17,8 @@ export const Route = createFileRoute("/api/books/$id/download")({
 				if (!format) return new Response("Bulunamadı", { status: 404 });
 
 				const requestedRange = request.headers.get("range");
-				const download = new URL(request.url).searchParams.get("download") === "1";
+				const download =
+					new URL(request.url).searchParams.get("download") === "1";
 
 				if (requestedRange !== null) {
 					// PDF.js can request small pieces instead of fetching the whole book.
@@ -36,7 +37,12 @@ export const Route = createFileRoute("/api/books/$id/download")({
 					}
 					const object = await env.BOOKS.get(item.fileUrl, { range });
 					if (!object) return new Response("Bulunamadı", { status: 404 });
-					const headers = bookFileHeaders(format, item.id, range.length, download);
+					const headers = bookFileHeaders(
+						format,
+						item.id,
+						range.length,
+						download,
+					);
 					headers.set("accept-ranges", "bytes");
 					headers.set(
 						"content-range",
