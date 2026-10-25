@@ -23,19 +23,31 @@ import { cn } from "#/lib/utils";
 
 type TocItem = { label: string; href: string; subitems: TocItem[] };
 
+type ReaderPhase = "download" | "parse" | "render" | "position";
+
 type FrameMessage =
 	| { type: "frame-loaded" }
+	| { type: "progress"; phase: ReaderPhase }
 	| { type: "ready"; toc: TocItem[] }
 	| { type: "relocate"; fraction: number; label: string }
 	| { type: "toggle-chrome" }
 	| { type: "escape" }
-	| { type: "error" };
+	| { type: "error"; phase?: ReaderPhase; code?: string };
+
+const PHASE_ERRORS: Record<ReaderPhase, string> = {
+	download: "EPUB dosyası indirilemedi.",
+	parse: "EPUB içeriği okunamadı.",
+	render: "EPUB sayfaları görüntülenemedi.",
+	position: "EPUB okuma konumu açılamadı.",
+};
 
 const iconButton =
 	"inline-flex size-10 shrink-0 items-center justify-center rounded-md no-underline transition-colors hover:bg-black/5 focus-visible:outline-2 focus-visible:outline-current dark:hover:bg-white/10";
 
 export function EpubReader({ id, title }: { id: string; title: string }) {
 	const frameRef = useRef<HTMLIFrameElement>(null);
+	const [attempt, setAttempt] = useState(0);
+	const [startFresh, setStartFresh] = useState(false);
 	// Server and first client render use the same defaults (no hydration
 	// mismatch); saved preferences are applied right after mounting.
 	const [settings, setSettings] = useState<ReaderSettings>(
@@ -45,6 +57,7 @@ export function EpubReader({ id, title }: { id: string; title: string }) {
 	const [status, setStatus] = useState<"loading" | "ready" | "error">(
 		"loading",
 	);
+	const [readError, setReadError] = useState("Bu kitap açılamadı.");
 	const [toc, setToc] = useState<TocItem[]>([]);
 	const [fraction, setFraction] = useState(0);
 	const [label, setLabel] = useState("");
@@ -80,7 +93,9 @@ export function EpubReader({ id, title }: { id: string; title: string }) {
 			const message = event.data;
 			if (message?.type === "frame-loaded")
 				send({ type: "settings", settings });
-			else if (message?.type === "ready") {
+			else if (message?.type === "progress") {
+				setReadError(PHASE_ERRORS[message.phase] ?? "Bu kitap açılamadı.");
+			} else if (message?.type === "ready") {
 				setToc(message.toc);
 				setStatus("ready");
 			} else if (message?.type === "relocate") {
@@ -88,11 +103,38 @@ export function EpubReader({ id, title }: { id: string; title: string }) {
 				setLabel(message.label);
 			} else if (message?.type === "toggle-chrome") setChrome((on) => !on);
 			else if (message?.type === "escape") setChrome(true);
-			else if (message?.type === "error") setStatus("error");
+			else if (message?.type === "error") {
+				setReadError(
+					message.phase && PHASE_ERRORS[message.phase]
+						? PHASE_ERRORS[message.phase]
+						: "Bu kitap açılamadı.",
+				);
+				setStatus("error");
+			}
 		}
 		window.addEventListener("message", onMessage);
 		return () => window.removeEventListener("message", onMessage);
 	}, [send, settings]);
+
+	// A failed script, network stall, or unresolved book initialization must not
+	// leave an opaque loading overlay on-screen indefinitely.
+	useEffect(() => {
+		if (status !== "loading") return;
+		const timeout = setTimeout(() => {
+			setReadError(
+				"Kitap açılırken zaman aşımı oluştu. Tekrar deneyebilirsin.",
+			);
+			setStatus("error");
+		}, 45_000);
+		return () => clearTimeout(timeout);
+	}, [status]);
+
+	function retry(resetPosition: boolean) {
+		setReadError("Bu kitap açılamadı.");
+		setStatus("loading");
+		setStartFresh(resetPosition);
+		setAttempt((current) => current + 1);
+	}
 
 	// The frame can finish loading before this page hydrates and starts
 	// listening; "hello" asks it to repeat its state.
@@ -164,9 +206,10 @@ export function EpubReader({ id, title }: { id: string; title: string }) {
 
 			<div className="relative min-h-0 flex-1">
 				<iframe
+					key={attempt}
 					ref={frameRef}
 					title={`${title} — okuma alanı`}
-					src={`/reader/frame?id=${encodeURIComponent(id)}`}
+					src={`/reader/frame?id=${encodeURIComponent(id)}&attempt=${attempt}${startFresh ? "&reset=1" : ""}`}
 					className="absolute inset-0 size-full border-0"
 					onLoad={() => send({ type: "hello" })}
 				/>
@@ -179,11 +222,26 @@ export function EpubReader({ id, title }: { id: string; title: string }) {
 							<output className="opacity-70">Kitap açılıyor…</output>
 						) : (
 							<div role="alert" className="max-w-sm">
-								<p className="font-serif text-xl">Bu kitap açılamadı.</p>
+								<p className="font-serif text-xl">{readError}</p>
 								<p className="mt-2 text-sm opacity-75">
-									Dosya bozuk ya da şifreli olabilir. İndirip başka bir
-									okuyucuda deneyebilirsin.
+									Dosya, bağlantı veya kayıtlı okuma konumu sorunlu olabilir.
 								</p>
+								<div className="mt-5 flex flex-wrap justify-center gap-2">
+									<button
+										type="button"
+										className="rounded-md border border-current/30 px-4 py-2"
+										onClick={() => retry(false)}
+									>
+										Tekrar dene
+									</button>
+									<button
+										type="button"
+										className="rounded-md border border-current/30 px-4 py-2"
+										onClick={() => retry(true)}
+									>
+										Baştan aç
+									</button>
+								</div>
 							</div>
 						)}
 					</div>

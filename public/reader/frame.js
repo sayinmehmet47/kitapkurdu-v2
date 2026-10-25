@@ -30,11 +30,13 @@ const FONTS = {
 
 const id = new URLSearchParams(location.search).get("id") ?? "";
 const positionKey = `kitapkurdu:reader:position:${id}`;
+const resetPosition = new URLSearchParams(location.search).get("reset") === "1";
 const status = document.getElementById("status");
 let view;
 // Replayed on "hello": the parent page may hydrate after this frame has loaded.
 let readyMessage;
 let lastRelocate;
+let lastError;
 let settings = {
 	fontSize: 100,
 	lineHeight: 1.6,
@@ -44,6 +46,13 @@ let settings = {
 };
 
 const post = (message) => parent.postMessage(message, location.origin);
+
+// Report only the stage and error category, never the uploaded book contents.
+let phase = "download";
+function progress(next) {
+	phase = next;
+	post({ type: "progress", phase });
+}
 
 function storage(action, value) {
 	try {
@@ -134,10 +143,17 @@ function handleKey(event) {
 }
 
 async function open() {
+	progress("download");
 	const response = await fetch(`/api/books/${encodeURIComponent(id)}/download`);
-	if (!response.ok) throw new Error(`HTTP ${response.status}`);
+	if (!response.ok) {
+		const error = new Error(`HTTP ${response.status}`);
+		error.name = `HTTP_${response.status}`;
+		throw error;
+	}
 	const blob = await response.blob();
+	if (blob.size === 0) throw new Error("Empty EPUB download");
 	const file = new File([blob], "book.epub", { type: "application/epub+zip" });
+	progress("parse");
 
 	// Build the book first so the sanitizer is attached before any section
 	// (including the first one) is loaded.
@@ -150,6 +166,7 @@ async function open() {
 	});
 	view = document.createElement("foliate-view");
 	document.body.append(view);
+	progress("render");
 	await view.open(book);
 	// Never navigate away from the reader; in-book links still work.
 	view.addEventListener("external-link", (event) => event.preventDefault());
@@ -173,7 +190,11 @@ async function open() {
 		post(message);
 	});
 	applySettings();
-	await view.init({ lastLocation: storage("get"), showTextStart: true });
+	progress("position");
+	await view.init({
+		lastLocation: resetPosition ? null : storage("get"),
+		showTextStart: true,
+	});
 	status.remove();
 	readyMessage = { type: "ready", toc: tocItems(view.book.toc) };
 	post(readyMessage);
@@ -187,6 +208,8 @@ window.addEventListener("message", (event) => {
 		post({ type: "frame-loaded" });
 		if (readyMessage) post(readyMessage);
 		if (lastRelocate) post(lastRelocate);
+		// A fast failure may happen before the parent has hydrated and subscribed.
+		if (lastError) post(lastError);
 	} else if (message.type === "settings") {
 		settings = { ...settings, ...message.settings };
 		applySettings();
@@ -201,8 +224,14 @@ window.addEventListener("message", (event) => {
 		view?.goToFraction(Math.min(1, Math.max(0, message.fraction)));
 });
 
-open().catch(() => {
+open().catch((error) => {
 	status.textContent = "Bu kitap açılamadı.";
-	post({ type: "error" });
+	// A category and stage are enough to diagnose an iPhone issue without
+	// displaying potentially sensitive book metadata or stack traces.
+	const code =
+		error instanceof Error ? error.name.slice(0, 40) : "UnknownError";
+	console.warn("[epub-reader]", phase, code);
+	lastError = { type: "error", phase, code };
+	post(lastError);
 });
 post({ type: "frame-loaded" });
