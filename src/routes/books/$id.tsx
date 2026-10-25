@@ -68,11 +68,9 @@ function formatBytes(size: number | null) {
 
 function Stars({ value }: { value: number }) {
 	return (
-		<span role="img" aria-label={`${value} yıldız`} className="text-amber-500">
+		<span role="img" aria-label={`${value} yıldız`} className="text-primary">
 			{"★".repeat(Math.round(value))}
-			<span className="text-[var(--sea-ink-soft)]">
-				{"★".repeat(5 - Math.round(value))}
-			</span>
+			<span className="text-input">{"★".repeat(5 - Math.round(value))}</span>
 		</span>
 	);
 }
@@ -136,10 +134,10 @@ function RatingForm({
 					value={review}
 					onChange={(event) => setReview(event.target.value)}
 					rows={3}
-					className="demo-input w-full"
+					className="demo-input h-auto w-full py-2"
 				/>
 			</div>
-			{error ? <p className="text-sm text-red-600">{error}</p> : null}
+			{error ? <p className="text-sm text-destructive">{error}</p> : null}
 			<button type="submit" className="demo-button">
 				{initial ? "Güncelle" : "Gönder"}
 			</button>
@@ -188,7 +186,7 @@ function BookDetailPage() {
 								className="aspect-[2/3] w-full rounded-md object-cover"
 							/>
 						) : (
-							<div className="flex aspect-[2/3] w-full items-center justify-center rounded-md bg-[var(--link-bg-hover)] text-6xl">
+							<div className="flex aspect-[2/3] w-full items-center justify-center rounded-md bg-muted text-6xl">
 								📖
 							</div>
 						)}
@@ -231,7 +229,7 @@ function BookDetailPage() {
 								{(item.category ?? []).map((category) => (
 									<li
 										key={category}
-										className="rounded-full bg-[var(--chip-bg)] px-2 py-0.5 text-xs"
+										className="rounded-full bg-muted px-2 py-0.5 text-xs"
 									>
 										{category}
 									</li>
@@ -262,7 +260,7 @@ function BookDetailPage() {
 					</div>
 				</div>
 
-				<section className="mt-12 border-t border-[var(--chip-line)] pt-8">
+				<section className="mt-12 border-t border-border pt-8">
 					<h2 className="demo-section-title mb-2">Değerlendirmeler</h2>
 					<p className="demo-muted mb-6 text-sm">
 						<Stars value={average} /> {average.toFixed(1)} · {count} yorum

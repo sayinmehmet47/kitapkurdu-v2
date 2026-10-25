@@ -24,6 +24,52 @@ test("home page renders, navigates, and fits the viewport", async ({
 	).toBeVisible();
 });
 
+test("site shell is branded, Turkish, themeable, and searchable", async ({
+	page,
+	isMobile,
+}, info) => {
+	await page.goto("/");
+	await expect(page).toHaveTitle("KitapKurdu");
+	await expect(page.locator("html")).toHaveAttribute("lang", "tr");
+	const header = page.getByRole("banner");
+	await expect(header.getByRole("link", { name: "KitapKurdu" })).toBeVisible();
+	await expect(
+		page
+			.getByRole("navigation", { name: "Ana menü" })
+			.getByRole("link", { name: "Kitaplar" }),
+	).toBeVisible();
+
+	// Theme cycles system -> light -> dark -> system.
+	const toggle = header.getByRole("button", { name: /^Tema:/ });
+	await toggle.click();
+	await expect(page.locator("html")).toHaveClass(/(^|\s)light(\s|$)/);
+	await toggle.click();
+	await expect(page.locator("html")).toHaveClass(/(^|\s)dark(\s|$)/);
+	await capture(page, info, "home-dark");
+	await toggle.click();
+	await expect(page.locator("html")).toHaveClass(/(^|\s)light(\s|$)/);
+
+	if (isMobile) {
+		await header.getByRole("link", { name: "Kitaplarda ara" }).click();
+		await expect(page.getByRole("heading", { name: "Kitaplar" })).toBeVisible();
+		await expect(
+			page.getByRole("searchbox", { name: "Kitap ara" }),
+		).toBeVisible();
+	} else {
+		const search = header.getByRole("searchbox", { name: "Kitaplarda ara" });
+		await search.fill("1984");
+		await search.press("Enter");
+		await expect(page).toHaveURL(/\/books\?.*q=%221984%22/);
+		await expect(page.getByText("1984", { exact: true })).toBeVisible();
+		await expect(page.getByText("Sefiller", { exact: true })).toHaveCount(0);
+	}
+	// The catalog has its own search field, so the header does not repeat it.
+	await expect(
+		header.getByRole("searchbox", { name: "Kitaplarda ara" }),
+	).toHaveCount(0);
+	await capture(page, info, "header-search");
+});
+
 test("anonymous users must sign in before viewing private todos", async ({
 	page,
 }, info) => {

@@ -19,7 +19,7 @@ function BetterAuthDemo() {
 	if (isPending) {
 		return (
 			<main className="demo-page demo-center">
-				<div className="h-5 w-5 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-900 dark:border-neutral-800 dark:border-t-neutral-100" />
+				<div className="h-5 w-5 animate-spin rounded-full border-2 border-border border-t-foreground" />
 			</main>
 		);
 	}
@@ -40,8 +40,8 @@ function BetterAuthDemo() {
 						{session.user.image ? (
 							<img src={session.user.image} alt="" className="h-10 w-10" />
 						) : (
-							<div className="h-10 w-10 bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center">
-								<span className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
+							<div className="flex size-10 items-center justify-center rounded-full bg-accent">
+								<span className="font-serif text-base font-semibold text-accent-foreground">
 									{session.user.name?.charAt(0).toUpperCase() || "U"}
 								</span>
 							</div>
@@ -50,7 +50,7 @@ function BetterAuthDemo() {
 							<p className="text-sm font-medium truncate">
 								{session.user.name}
 							</p>
-							<p className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
+							<p className="truncate text-xs text-muted-foreground">
 								{session.user.email}
 							</p>
 						</div>
@@ -182,7 +182,7 @@ function BetterAuthDemo() {
 
 					{error && (
 						<div className="demo-alert demo-alert-danger">
-							<p className="text-sm text-red-600">{error}</p>
+							<p className="text-sm text-destructive">{error}</p>
 						</div>
 					)}
 
@@ -193,7 +193,7 @@ function BetterAuthDemo() {
 					>
 						{loading ? (
 							<span className="flex items-center justify-center gap-2">
-								<span className="h-4 w-4 animate-spin rounded-full border-2 border-neutral-400 border-t-white dark:border-neutral-600 dark:border-t-neutral-900" />
+								<span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/40 border-t-primary-foreground" />
 								<span>Please wait</span>
 							</span>
 						) : isSignUp ? (
@@ -211,7 +211,7 @@ function BetterAuthDemo() {
 							setIsSignUp(!isSignUp);
 							setError("");
 						}}
-						className="demo-muted text-sm transition-colors hover:text-[var(--sea-ink)]"
+						className="demo-muted text-sm transition-colors hover:text-foreground"
 					>
 						{isSignUp
 							? "Already have an account? Sign in"
