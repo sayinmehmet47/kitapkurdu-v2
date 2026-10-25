@@ -31,7 +31,7 @@ export type BookMetadata = {
 	coverSmallThumbnail?: string;
 };
 
-export type MetadataQuery = { isbn?: string; name?: string };
+export type MetadataQuery = { isbn?: string; name?: string; author?: string };
 
 export type MetadataSource = "google" | "openlibrary";
 
@@ -112,6 +112,30 @@ function richest(candidates: BookMetadata[]): BookMetadata | undefined {
 	return best;
 }
 
+// Title searches are fuzzy and can return another book entirely (and with it a
+// wrong cover). Accept a record only if its title is the one asked for, ignoring
+// case, accents, and punctuation, and if a typed author agrees with it.
+function normalize(value: string) {
+	return value
+		.toLocaleLowerCase("tr")
+		.replaceAll("ı", "i")
+		.normalize("NFD")
+		.replace(/\p{M}/gu, "")
+		.replace(/[^\p{L}\p{N}]+/gu, " ")
+		.trim();
+}
+
+function sameBook(metadata: BookMetadata, query: MetadataQuery) {
+	if (query.isbn) return true; // An ISBN identifies the edition exactly.
+	if (!metadata.title || !query.name) return false;
+	if (normalize(metadata.title) !== normalize(query.name)) return false;
+	if (!query.author || !metadata.author) return true;
+	const recordAuthor = normalize(metadata.author).split(" ");
+	return normalize(query.author)
+		.split(" ")
+		.some((part) => part.length >= 3 && recordAuthor.includes(part));
+}
+
 /** Returns an https cover URL on a known source host, or undefined. */
 export function safeCoverUrl(value: unknown) {
 	const raw = text(value);
@@ -158,13 +182,19 @@ function parseOpenLibraryDoc(
 	doc: Record<string, unknown>,
 	isbn: string | undefined,
 ): BookMetadata {
+	// By ISBN, ask for that edition's own cover; default=false makes a missing
+	// cover a 404 (so the generated cover shows) instead of another edition's.
 	const coverId = doc.cover_i;
 	const cover = (size: "M" | "S") =>
-		typeof coverId === "number" && Number.isSafeInteger(coverId)
+		isbn
 			? safeCoverUrl(
-					`https://covers.openlibrary.org/b/id/${coverId}-${size}.jpg`,
+					`https://covers.openlibrary.org/b/isbn/${encodeURIComponent(isbn)}-${size}.jpg?default=false`,
 				)
-			: undefined;
+			: typeof coverId === "number" && Number.isSafeInteger(coverId)
+				? safeCoverUrl(
+						`https://covers.openlibrary.org/b/id/${coverId}-${size}.jpg`,
+					)
+				: undefined;
 	// Subjects are noisy ("18.84 Turkish language…"); keep a few plain ones.
 	const subjects = texts(doc.subject).filter(
 		(subject) => subject.length <= 40 && !/\d/.test(subject),
@@ -211,9 +241,10 @@ async function request(
 }
 
 async function fromGoogle(
-	q: string,
+	query: MetadataQuery,
 	config: LookupConfig,
 ): Promise<SourceResult> {
+	const q = query.isbn ? `isbn:${query.isbn}` : (query.name ?? "");
 	const url = new URL(config.apiUrl ?? GOOGLE_BOOKS_API_URL);
 	url.searchParams.set("q", q);
 	url.searchParams.set("maxResults", "5");
@@ -236,13 +267,14 @@ async function fromGoogle(
 		(Array.isArray(items) ? items : [])
 			.map((item) => (item as { volumeInfo?: unknown })?.volumeInfo)
 			.filter((volume) => volume && typeof volume === "object")
-			.map((volume) => parseGoogleVolume(volume as Record<string, unknown>)),
+			.map((volume) => parseGoogleVolume(volume as Record<string, unknown>))
+			.filter((metadata) => sameBook(metadata, query)),
 	);
 	return metadata ? { status: "found", metadata } : { status: "not-found" };
 }
 
 async function fromOpenLibrary(
-	query: { isbn?: string; name?: string },
+	query: MetadataQuery,
 	config: LookupConfig,
 ): Promise<SourceResult> {
 	const url = new URL(config.openLibraryUrl ?? OPEN_LIBRARY_SEARCH_URL);
@@ -262,7 +294,7 @@ async function fromOpenLibrary(
 				parseOpenLibraryDoc(doc as Record<string, unknown>, query.isbn),
 			)
 			// An ISBN search sets isbn on every record; still require a title.
-			.filter((doc) => doc.title),
+			.filter((doc) => doc.title && sameBook(doc, query)),
 	);
 	return metadata ? { status: "found", metadata } : { status: "not-found" };
 }
@@ -274,11 +306,12 @@ export async function lookupBookMetadata(
 	const isbn = text(query.isbn)?.replace(/[\s-]/g, "");
 	const name = text(query.name);
 	if (!isbn && !name) return { status: "not-found" };
+	const cleaned = { isbn, name, author: text(query.author) };
 
-	const google = await fromGoogle(isbn ? `isbn:${isbn}` : (name ?? ""), config);
+	const google = await fromGoogle(cleaned, config);
 	if (google.status === "found") return { ...google, source: "google" };
 
-	const openLibrary = await fromOpenLibrary({ isbn, name }, config);
+	const openLibrary = await fromOpenLibrary(cleaned, config);
 	if (openLibrary.status === "found") {
 		return { ...openLibrary, source: "openlibrary" };
 	}

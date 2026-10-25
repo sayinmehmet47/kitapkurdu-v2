@@ -112,6 +112,34 @@ test("Google Books lookup fills empty fields and the cover before upload", async
 	await capture(page, info, "metadata-book");
 });
 
+test("a suggested cover can be removed and stays removed on save", async ({
+	page,
+}) => {
+	await signUp(page);
+	await page.goto("/books/new");
+	await page.getByLabel("ISBN", { exact: true }).fill("9789750719387");
+	await page.getByRole("button", { name: "Bilgileri getir" }).click();
+	await expect(page.locator('[data-slot="book-cover"] img')).toHaveCount(1);
+
+	await page.getByRole("button", { name: "Kapağı kaldır" }).click();
+	await expect(page.locator('[data-slot="book-cover"]')).toHaveCount(0);
+	// Looking up again does not bring the removed cover back.
+	await page.getByRole("button", { name: "Bilgileri getir" }).click();
+	await expect(page.getByRole("status")).toContainText("Google Books");
+	await expect(page.locator('[data-slot="book-cover"]')).toHaveCount(0);
+
+	await page.locator('input[type="file"]').setInputFiles({
+		name: "kapaksiz.pdf",
+		mimeType: "application/pdf",
+		buffer: Buffer.from("%PDF-1.4\n% no cover\n"),
+	});
+	await page.getByRole("button", { name: "Yükle" }).click();
+	await expect(page).toHaveURL(/\/books\/[0-9a-f-]{36}$/);
+	// The detail page shows the generated cover, not the removed image.
+	await expect(page.locator('[data-slot="book-cover"]')).toHaveCount(1);
+	await expect(page.locator('[data-slot="book-cover"] img')).toHaveCount(0);
+});
+
 test("an upload still works when Google Books has no match", async ({
 	page,
 }) => {

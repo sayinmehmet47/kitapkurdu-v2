@@ -18,6 +18,8 @@ export const uploadInput = z.object({
 	language: z.enum(["turkish", "english"]).default("turkish"),
 	// From the form's Google Books preview; re-checked with safeCoverUrl.
 	coverThumbnail: z.string().trim().max(2000).optional(),
+	// The uploader removed the suggested cover; do not add one back on save.
+	coverRemoved: z.boolean().optional(),
 	fileName: z.string().trim().min(1).max(200),
 	fileBase64: z.string().min(1),
 });
@@ -145,10 +147,10 @@ export async function createBookWithFile(
 		!data.isbn ||
 		!data.description ||
 		category.length === 0 ||
-		!cover;
+		(!cover && !data.coverRemoved);
 	const found =
 		lookup && missing
-			? await lookup({ isbn: data.isbn, name: data.name })
+			? await lookup({ isbn: data.isbn, name: data.name, author: data.author })
 			: null;
 
 	// Only PDFs are stored, so force a safe content type and extension: the
@@ -167,8 +169,13 @@ export async function createBookWithFile(
 			isbn: data.isbn || found?.isbn || null,
 			description: data.description || found?.description || null,
 			category: category.length > 0 ? category : (found?.categories ?? []),
-			coverThumbnail: cover ?? found?.coverThumbnail ?? null,
-			coverSmallThumbnail: cover ? null : (found?.coverSmallThumbnail ?? null),
+			coverThumbnail: data.coverRemoved
+				? null
+				: (cover ?? found?.coverThumbnail ?? null),
+			coverSmallThumbnail:
+				data.coverRemoved || cover
+					? null
+					: (found?.coverSmallThumbnail ?? null),
 			language: data.language,
 			fileUrl: key,
 			size: bytes.byteLength,
