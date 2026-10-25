@@ -58,7 +58,6 @@ export function EpubReader({ id, title }: { id: string; title: string }) {
 		"loading",
 	);
 	const [readError, setReadError] = useState("Bu kitap açılamadı.");
-	const [phase, setPhase] = useState<ReaderPhase>("download");
 	const [toc, setToc] = useState<TocItem[]>([]);
 	const [fraction, setFraction] = useState(0);
 	const [label, setLabel] = useState("");
@@ -95,7 +94,6 @@ export function EpubReader({ id, title }: { id: string; title: string }) {
 			if (message?.type === "frame-loaded")
 				send({ type: "settings", settings });
 			else if (message?.type === "progress") {
-				setPhase(message.phase);
 				setReadError(PHASE_ERRORS[message.phase] ?? "Bu kitap açılamadı.");
 			} else if (message?.type === "ready") {
 				setToc(message.toc);
@@ -131,7 +129,6 @@ export function EpubReader({ id, title }: { id: string; title: string }) {
 
 	function retry(resetPosition: boolean) {
 		setReadError("Bu kitap açılamadı.");
-		setPhase("download");
 		setStatus("loading");
 		setStartFresh(resetPosition);
 		setAttempt((current) => current + 1);
