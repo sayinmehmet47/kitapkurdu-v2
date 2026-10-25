@@ -10,6 +10,8 @@ test("book detail page shows metadata", async ({ page }, info) => {
 		page.getByText("Klasik bir roman.", { exact: true }),
 	).toBeVisible();
 	await expect(page.getByText("Türkçe", { exact: true })).toBeVisible();
+	// Nobody rates Sefiller in the suite, so it has no score yet.
+	await expect(page.getByText("Henüz puan yok", { exact: true })).toBeVisible();
 
 	await capture(page, info, "book-detail");
 });

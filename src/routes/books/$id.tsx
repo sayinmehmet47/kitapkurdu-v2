@@ -264,12 +264,16 @@ function BookDetailPage() {
 					<h2 id="ratings-heading" className="text-2xl font-semibold">
 						Değerlendirmeler
 					</h2>
-					<p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
-						<Stars value={average} />
-						<span>
-							{average.toFixed(1)} · {count} değerlendirme
-						</span>
-					</p>
+					{count > 0 ? (
+						<p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+							<Stars value={average} />
+							<span>
+								{average.toFixed(1)} · {count} değerlendirme
+							</span>
+						</p>
+					) : (
+						<p className="mt-2 text-sm text-muted-foreground">Henüz puan yok</p>
+					)}
 				</div>
 
 				<div className="min-w-0">

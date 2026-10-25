@@ -20,6 +20,14 @@ function clothFor(seed: string) {
 	return CLOTH[hash % CLOTH.length];
 }
 
+// Turkish titles are often one long word ("Tutunamayanlar"). Shrink the title
+// so its longest word fits the cover's text width (~70% of the cover) instead
+// of splitting the word mid-way.
+function titleSize(name: string) {
+	const longest = Math.max(1, ...name.split(/\s+/).map((word) => word.length));
+	return `min(12cqw, ${(70 / (0.56 * longest)).toFixed(2)}cqw)`;
+}
+
 type BookCoverProps = {
 	name: string;
 	author?: string | null;
@@ -68,7 +76,8 @@ export function BookCover({
 					<div className="absolute inset-[6%] flex flex-col items-center border border-[#f6f1e7]/35 px-[9%] pt-[16%] pb-[12%] text-center">
 						<span
 							data-text={name}
-							className="line-clamp-5 font-serif text-[12cqw] leading-[1.08] font-semibold [font-optical-sizing:auto] before:content-[attr(data-text)]"
+							style={{ fontSize: titleSize(name) }}
+							className="line-clamp-5 font-serif leading-[1.08] font-semibold break-normal [font-optical-sizing:auto] before:content-[attr(data-text)]"
 						/>
 						<span className="mt-[10%] h-px w-[22%] bg-[#f6f1e7]/55" />
 						{author ? (
