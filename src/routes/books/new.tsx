@@ -143,6 +143,10 @@ function UploadPage() {
 	);
 	const [error, setError] = useState<string | null>(null);
 	const [submitting, setSubmitting] = useState(false);
+	// Tests and slow devices must not type into controlled inputs before React
+	// has attached their state, or hydration will reset the typed values.
+	const [hydrated, setHydrated] = useState(false);
+	useEffect(() => setHydrated(true), []);
 
 	if (!isSignedIn) {
 		return (
@@ -378,7 +382,11 @@ function UploadPage() {
 					Kitap Ekle
 				</h1>
 
-				<form onSubmit={handleSubmit} className="mt-8 space-y-4">
+				<form
+					onSubmit={handleSubmit}
+					data-hydrated={hydrated ? "true" : undefined}
+					className="mt-8 space-y-4"
+				>
 					<div className="space-y-1.5">
 						<Label htmlFor="file">PDF veya EPUB dosyası (en fazla 25 MB)</Label>
 						<Input

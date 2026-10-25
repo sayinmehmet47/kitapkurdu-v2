@@ -68,6 +68,13 @@ export async function capture(page: Page, info: TestInfo, name: string) {
 	await info.attach(name, { path, contentType: "image/png" });
 }
 
+// Upload inputs are controlled. Typing before hydration is reset by React, so
+// signed-in upload tests wait for the client marker before filling the form.
+export async function openUploadForm(page: Page) {
+	await page.goto("/books/new");
+	await page.locator('form[data-hydrated="true"]').waitFor();
+}
+
 export async function signUp(page: Page) {
 	const credentials = {
 		name: "Browser Test Reader",

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Page } from "@playwright/test";
-import { capture, expect, signUp, test } from "./fixtures";
+import { capture, expect, openUploadForm, signUp, test } from "./fixtures";
 
 test("regular users do not see admin controls", async ({ page }) => {
 	await signUp(page);
@@ -13,7 +13,7 @@ test("regular users do not see admin controls", async ({ page }) => {
 });
 
 async function uploadAdminBook(page: Page, name: string) {
-	await page.goto("/books/new");
+	await openUploadForm(page);
 	await page.getByLabel("Ad", { exact: true }).fill(name);
 	await page.locator('input[type="file"]').setInputFiles({
 		name: "admin-test.pdf",
