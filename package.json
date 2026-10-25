@@ -23,7 +23,7 @@
 		"test:e2e": "playwright test",
 		"test:e2e:ui": "playwright test --ui",
 		"test:e2e:report": "playwright show-report",
-		"setup:browsers": "playwright install chromium && playwright-mcp install-browser chromium",
+		"setup:browsers": "playwright install chromium webkit && playwright-mcp install-browser chromium",
 		"mcp:browser": "playwright-mcp --config playwright-mcp.config.json",
 		"verify": "npm run check && npm run cf:typegen -- --check && npm run generate-routes && npm run typecheck && npm test && npm run build:test && npm run test:e2e",
 		"typecheck": "tsc --noEmit",
