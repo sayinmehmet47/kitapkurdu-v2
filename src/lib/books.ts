@@ -79,3 +79,52 @@ export async function listCategories(db: Database) {
 	}
 	return [...categories].sort();
 }
+
+export const bookUpdateInput = z.object({
+	name: z.string().trim().min(1).max(200),
+	author: z.string().trim().max(200).optional(),
+	publisher: z.string().trim().max(200).optional(),
+	isbn: z.string().trim().max(32).optional(),
+	description: z.string().trim().max(5000).optional(),
+	category: z.string().trim().max(500).optional(),
+	language: z.enum(["turkish", "english"]).default("turkish"),
+});
+
+export function updateBook(db: Database, id: string, input: unknown) {
+	const data = bookUpdateInput.parse(input);
+	const category = (data.category ?? "")
+		.split(",")
+		.map((item) => item.trim())
+		.filter(Boolean);
+	return db
+		.update(book)
+		.set({
+			name: data.name,
+			author: data.author || null,
+			publisher: data.publisher || null,
+			isbn: data.isbn || null,
+			description: data.description || null,
+			category,
+			language: data.language,
+		})
+		.where(eq(book.id, id))
+		.returning()
+		.get();
+}
+
+export function deleteBookById(db: Database, id: string) {
+	return db.delete(book).where(eq(book.id, id)).returning().get();
+}
+
+export function markBookDuplicate(
+	db: Database,
+	id: string,
+	canonicalId: string,
+) {
+	return db
+		.update(book)
+		.set({ duplicateOfId: canonicalId })
+		.where(eq(book.id, id))
+		.returning()
+		.get();
+}
