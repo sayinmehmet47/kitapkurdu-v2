@@ -87,6 +87,31 @@ function compact(metadata: BookMetadata): BookMetadata {
 	) as BookMetadata;
 }
 
+// Sources often list sparse records first (sometimes only the title the user
+// already typed). Pick the record with the most details beyond the title, and
+// ignore records with none.
+const DETAIL_FIELDS = [
+	"author",
+	"isbn",
+	"publisher",
+	"description",
+	"categories",
+	"coverThumbnail",
+] as const;
+
+function richest(candidates: BookMetadata[]): BookMetadata | undefined {
+	let best: BookMetadata | undefined;
+	let bestScore = 0;
+	for (const metadata of candidates) {
+		const score = DETAIL_FIELDS.filter((field) => metadata[field]).length;
+		if (score > bestScore) {
+			best = metadata;
+			bestScore = score;
+		}
+	}
+	return best;
+}
+
 /** Returns an https cover URL on a known source host, or undefined. */
 export function safeCoverUrl(value: unknown) {
 	const raw = text(value);
@@ -207,13 +232,13 @@ async function fromGoogle(
 	if (!result.ok) return { status: "unavailable" };
 
 	const items = (result.body as { items?: unknown })?.items;
-	for (const item of Array.isArray(items) ? items : []) {
-		const volume = (item as { volumeInfo?: unknown })?.volumeInfo;
-		if (!volume || typeof volume !== "object") continue;
-		const metadata = parseGoogleVolume(volume as Record<string, unknown>);
-		if (Object.keys(metadata).length > 0) return { status: "found", metadata };
-	}
-	return { status: "not-found" };
+	const metadata = richest(
+		(Array.isArray(items) ? items : [])
+			.map((item) => (item as { volumeInfo?: unknown })?.volumeInfo)
+			.filter((volume) => volume && typeof volume === "object")
+			.map((volume) => parseGoogleVolume(volume as Record<string, unknown>)),
+	);
+	return metadata ? { status: "found", metadata } : { status: "not-found" };
 }
 
 async function fromOpenLibrary(
@@ -230,15 +255,16 @@ async function fromOpenLibrary(
 	if (!result.ok) return { status: "unavailable" };
 
 	const docs = (result.body as { docs?: unknown })?.docs;
-	for (const doc of Array.isArray(docs) ? docs : []) {
-		if (!doc || typeof doc !== "object") continue;
-		const metadata = parseOpenLibraryDoc(
-			doc as Record<string, unknown>,
-			query.isbn,
-		);
-		if (metadata.title) return { status: "found", metadata };
-	}
-	return { status: "not-found" };
+	const metadata = richest(
+		(Array.isArray(docs) ? docs : [])
+			.filter((doc) => doc && typeof doc === "object")
+			.map((doc) =>
+				parseOpenLibraryDoc(doc as Record<string, unknown>, query.isbn),
+			)
+			// An ISBN search sets isbn on every record; still require a title.
+			.filter((doc) => doc.title),
+	);
+	return metadata ? { status: "found", metadata } : { status: "not-found" };
 }
 
 export async function lookupBookMetadata(
