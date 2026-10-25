@@ -173,18 +173,67 @@ test("the form says when no book source is available", async ({ page }) => {
 	await expect(page.getByLabel("Yazar", { exact: true })).toHaveValue("");
 });
 
-test("Open Library fills the form when Google Books is down", async ({
+for (const manual of [false, true]) {
+	test(`Open Library descriptions are ${manual ? "preserved when typed" : "filled when blank"} and saved`, async ({
+		page,
+	}, info) => {
+		const description = manual
+			? "Benim yazdığım kitap açıklaması."
+			: "Open Library üzerinden gelen örnek kitap açıklaması.";
+		await signUp(page);
+		await page.goto("/books/new");
+		await page.getByLabel("Ad", { exact: true }).fill("Yedekten Gelen Kitap");
+		if (manual)
+			await page.getByLabel("Açıklama", { exact: true }).fill(description);
+		await page.getByRole("button", { name: "Bilgileri getir" }).click();
+		await expect(page.getByRole("status")).toContainText(
+			"Open Library kaynağından dolduruldu",
+		);
+		await expect(page.getByLabel("Yazar", { exact: true })).toHaveValue(
+			"Open Library Yazarı",
+		);
+		await expect(page.locator('[data-slot="book-cover"] img')).toHaveCount(1);
+		await expect(page.getByLabel("Açıklama", { exact: true })).toHaveValue(
+			description,
+		);
+		await capture(page, info, "openlibrary-description-form");
+		await page.locator('input[type="file"]').setInputFiles({
+			name: "openlibrary.pdf",
+			mimeType: "application/pdf",
+			buffer: Buffer.from("%PDF-1.4\n% Open Library description test\n"),
+		});
+		await page.getByRole("button", { name: "Yükle", exact: true }).click();
+		await expect(page).toHaveURL(/\/books\/[0-9a-f-]{36}$/);
+		await expect(page.getByText(description, { exact: true })).toBeVisible();
+		await page.reload();
+		await expect(page.getByText(description, { exact: true })).toBeVisible();
+		await capture(page, info, "openlibrary-description-saved");
+	});
+}
+
+test("upload still succeeds when Open Library work details are unavailable", async ({
 	page,
 }) => {
 	await signUp(page);
 	await page.goto("/books/new");
-	await page.getByLabel("Ad", { exact: true }).fill("Yedekten Gelen Kitap");
-	await page.getByRole("button", { name: "Bilgileri getir" }).click();
-	await expect(page.getByRole("status")).toContainText(
-		"Open Library kaynağından dolduruldu",
-	);
-	await expect(page.getByLabel("Yazar", { exact: true })).toHaveValue(
-		"Open Library Yazarı",
-	);
-	await expect(page.locator('[data-slot="book-cover"] img')).toHaveCount(1);
+	await page
+		.getByLabel("Ad", { exact: true })
+		.fill("Açıklaması Alınamayan Kitap");
+	// Do not use the preview button: exercise metadata enrichment on save too.
+	await page.locator('input[type="file"]').setInputFiles({
+		name: "no-description.pdf",
+		mimeType: "application/pdf",
+		buffer: Buffer.from("%PDF-1.4\n% Optional detail failure\n"),
+	});
+	await page.getByRole("button", { name: "Yükle", exact: true }).click();
+	await expect(page).toHaveURL(/\/books\/[0-9a-f-]{36}$/);
+	await expect(
+		page.getByRole("heading", {
+			level: 1,
+			name: "Açıklaması Alınamayan Kitap",
+		}),
+	).toBeVisible();
+	await expect(
+		page.getByText("Open Library Yazarı", { exact: true }),
+	).toBeVisible();
 });

@@ -281,22 +281,51 @@ async function fromOpenLibrary(
 	if (query.isbn) url.searchParams.set("isbn", query.isbn);
 	else url.searchParams.set("title", query.name ?? "");
 	url.searchParams.set("limit", "5");
-	url.searchParams.set("fields", "title,author_name,publisher,subject,cover_i");
+	url.searchParams.set(
+		"fields",
+		"key,title,author_name,publisher,subject,cover_i",
+	);
 
 	const result = await request(url, config, "Open Library");
 	if (!result.ok) return { status: "unavailable" };
 
 	const docs = (result.body as { docs?: unknown })?.docs;
-	const metadata = richest(
-		(Array.isArray(docs) ? docs : [])
-			.filter((doc) => doc && typeof doc === "object")
-			.map((doc) =>
-				parseOpenLibraryDoc(doc as Record<string, unknown>, query.isbn),
-			)
-			// An ISBN search sets isbn on every record; still require a title.
-			.filter((doc) => doc.title && sameBook(doc, query)),
-	);
-	return metadata ? { status: "found", metadata } : { status: "not-found" };
+	const candidates = (Array.isArray(docs) ? docs : [])
+		.filter((doc) => doc && typeof doc === "object")
+		.map((doc) => ({
+			key: (doc as Record<string, unknown>).key,
+			metadata: parseOpenLibraryDoc(doc as Record<string, unknown>, query.isbn),
+		}))
+		// An ISBN search sets isbn on every record; still require a title.
+		.filter(({ metadata }) => metadata.title && sameBook(metadata, query));
+	const metadata = richest(candidates.map((candidate) => candidate.metadata));
+	if (!metadata) return { status: "not-found" };
+
+	const key = candidates.find(
+		(candidate) => candidate.metadata === metadata,
+	)?.key;
+	// Never treat an API-provided key as an arbitrary URL. Keep the configured
+	// origin (including the isolated local test service), without search params.
+	if (typeof key === "string" && /^\/works\/OL[0-9]+W$/.test(key)) {
+		const detail = await request(
+			new URL(`${key}.json`, url.origin),
+			config,
+			"Open Library work",
+		);
+		if (detail.ok) {
+			const raw = (detail.body as { description?: unknown } | null)
+				?.description;
+			const description = text(
+				typeof raw === "object" && raw !== null
+					? (raw as { value?: unknown }).value
+					: raw,
+			);
+			// Match the upload form/server's description limit; optional enrichment
+			// must not make an otherwise valid upload fail validation.
+			if (description) metadata.description = description.slice(0, 5000);
+		}
+	}
+	return { status: "found", metadata };
 }
 
 export async function lookupBookMetadata(
