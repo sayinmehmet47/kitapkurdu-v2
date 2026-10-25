@@ -21,8 +21,8 @@ for (const port of [4173, 4175]) {
 	);
 }
 
-// Local stand-in for the Google Books API (GOOGLE_BOOKS_API_URL in
-// wrangler.e2e.json), so upload lookups never leave this machine.
+// Local stand-ins for Google Books and Open Library (GOOGLE_BOOKS_API_URL and
+// OPEN_LIBRARY_API_URL in wrangler.e2e.json), so lookups never leave this machine.
 const stubVolume = {
 	title: "Kürk Mantolu Madonna",
 	authors: ["Sabahattin Ali"],
@@ -38,10 +38,37 @@ const stubVolume = {
 const booksApi = createHttpServer((request, response) => {
 	const url = new URL(request.url ?? "/", "http://127.0.0.1:4175");
 	const q = url.searchParams.get("q");
-	// Google answers 429 when its daily quota is spent; let tests see that path.
-	if (q === "Kota Doldu") {
-		response.writeHead(429, { "content-type": "application/json" });
-		response.end(JSON.stringify({ error: { code: 429 } }));
+	if (url.pathname === "/search.json") {
+		// Open Library: down for "Kota Doldu"; only knows the book Google fails on.
+		if (url.searchParams.get("title") === "Kota Doldu") {
+			response.writeHead(503, { "content-type": "text/plain" });
+			response.end("unavailable");
+			return;
+		}
+		const known = url.searchParams.get("title") === "Yedekten Gelen Kitap";
+		response.writeHead(200, { "content-type": "application/json" });
+		response.end(
+			JSON.stringify({
+				docs: known
+					? [
+							{
+								title: "Yedekten Gelen Kitap",
+								author_name: ["Open Library Yazarı"],
+								subject: ["Roman"],
+								cover_i: 1,
+							},
+						]
+					: [],
+			}),
+		);
+		return;
+	}
+	// Google answers 429 when its quota is spent and 503 "backendFailed" when
+	// its backend is down; let tests see both. "Kota Doldu" fails everywhere.
+	if (q === "Kota Doldu" || q === "Yedekten Gelen Kitap") {
+		const status = q === "Kota Doldu" ? 429 : 503;
+		response.writeHead(status, { "content-type": "application/json" });
+		response.end(JSON.stringify({ error: { code: status } }));
 		return;
 	}
 	const match =

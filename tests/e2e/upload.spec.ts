@@ -76,7 +76,7 @@ test("Google Books lookup fills empty fields and the cover before upload", async
 	await page.getByRole("button", { name: "Bilgileri getir" }).click();
 
 	await expect(page.getByRole("status")).toContainText(
-		"Google Books'tan dolduruldu",
+		"Google Books kaynağından dolduruldu",
 	);
 	await expect(page.getByLabel("Ad", { exact: true })).toHaveValue(
 		"Kürk Mantolu Madonna",
@@ -120,7 +120,7 @@ test("an upload still works when Google Books has no match", async ({
 	await page.getByLabel("Ad", { exact: true }).fill("Hiç Bilinmeyen Kitap");
 	await page.getByRole("button", { name: "Bilgileri getir" }).click();
 	await expect(page.getByRole("status")).toHaveText(
-		"Google Books'ta eşleşen kitap bulunamadı.",
+		"Eşleşen kitap bulunamadı.",
 	);
 	await page.locator('input[type="file"]').setInputFiles({
 		name: "bilinmeyen.pdf",
@@ -134,13 +134,29 @@ test("an upload still works when Google Books has no match", async ({
 	).toBeVisible();
 });
 
-test("the form says when Google Books is unavailable", async ({ page }) => {
+test("the form says when no book source is available", async ({ page }) => {
 	await signUp(page);
 	await page.goto("/books/new");
 	await page.getByLabel("Ad", { exact: true }).fill("Kota Doldu");
 	await page.getByRole("button", { name: "Bilgileri getir" }).click();
 	await expect(page.getByRole("status")).toHaveText(
-		"Google Books şu an yanıt vermiyor; formu elle doldurabilirsin.",
+		"Kitap bilgileri şu an getirilemiyor; formu elle doldurabilirsin.",
 	);
 	await expect(page.getByLabel("Yazar", { exact: true })).toHaveValue("");
+});
+
+test("Open Library fills the form when Google Books is down", async ({
+	page,
+}) => {
+	await signUp(page);
+	await page.goto("/books/new");
+	await page.getByLabel("Ad", { exact: true }).fill("Yedekten Gelen Kitap");
+	await page.getByRole("button", { name: "Bilgileri getir" }).click();
+	await expect(page.getByRole("status")).toContainText(
+		"Open Library kaynağından dolduruldu",
+	);
+	await expect(page.getByLabel("Yazar", { exact: true })).toHaveValue(
+		"Open Library Yazarı",
+	);
+	await expect(page.locator('[data-slot="book-cover"] img')).toHaveCount(1);
 });

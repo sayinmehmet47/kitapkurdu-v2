@@ -22,10 +22,11 @@ export async function guardLocalNetwork(context: BrowserContext) {
 			// Deterministic system-font fallback; do not request third-party fonts in tests.
 			await route.fulfill({ status: 200, contentType: "text/css", body: "" });
 		} else if (
-			url.hostname === "books.google.com" &&
+			(url.hostname === "books.google.com" ||
+				url.hostname === "covers.openlibrary.org") &&
 			route.request().resourceType() === "image"
 		) {
-			// Google Books covers come from the local API stub; serve a fixed image.
+			// Covers come from the local API stubs; serve a fixed image instead.
 			await route.fulfill({
 				status: 200,
 				contentType: "image/png",

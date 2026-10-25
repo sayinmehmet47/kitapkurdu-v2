@@ -30,17 +30,23 @@ const getUploadContext = createServerFn({ method: "GET" }).handler(async () => {
 	return { isSignedIn: Boolean(session) };
 });
 
-// Optional: GOOGLE_BOOKS_API_KEY (Worker secret) raises the shared API quota;
-// GOOGLE_BOOKS_API_URL points E2E tests at a local stub instead of Google.
+// Optional: GOOGLE_BOOKS_API_KEY (Worker secret) avoids the anonymous quota;
+// GOOGLE_BOOKS_API_URL / OPEN_LIBRARY_API_URL point E2E tests at local stubs.
 function metadataConfig(): LookupConfig {
 	const vars = env as unknown as Partial<
-		Record<"GOOGLE_BOOKS_API_KEY" | "GOOGLE_BOOKS_API_URL", string>
+		Record<
+			"GOOGLE_BOOKS_API_KEY" | "GOOGLE_BOOKS_API_URL" | "OPEN_LIBRARY_API_URL",
+			string
+		>
 	>;
 	return {
 		apiKey: vars.GOOGLE_BOOKS_API_KEY || undefined,
 		apiUrl: vars.GOOGLE_BOOKS_API_URL || undefined,
+		openLibraryUrl: vars.OPEN_LIBRARY_API_URL || undefined,
 	};
 }
+
+const SOURCE_NAMES = { google: "Google Books", openlibrary: "Open Library" };
 
 const lookupMetadata = createServerFn({ method: "POST" })
 	.validator(
@@ -115,7 +121,7 @@ function UploadPage() {
 	const [cover, setCover] = useState<string | null>(null);
 	const [looking, setLooking] = useState(false);
 	const [lookupStatus, setLookupStatus] = useState(
-		"ISBN ya da adı yazıp bilgileri Google Books'tan getirebilirsin.",
+		"ISBN ya da adı yazıp kitap bilgilerini otomatik getirebilirsin.",
 	);
 	const [error, setError] = useState<string | null>(null);
 	const [submitting, setSubmitting] = useState(false);
@@ -144,12 +150,12 @@ function UploadPage() {
 			const result = await lookupMetadata({ data: { isbn, name } });
 			if (result.status === "unavailable") {
 				setLookupStatus(
-					"Google Books şu an yanıt vermiyor; formu elle doldurabilirsin.",
+					"Kitap bilgileri şu an getirilemiyor; formu elle doldurabilirsin.",
 				);
 				return;
 			}
 			if (result.status === "not-found") {
-				setLookupStatus("Google Books'ta eşleşen kitap bulunamadı.");
+				setLookupStatus("Eşleşen kitap bulunamadı.");
 				return;
 			}
 			const found = result.metadata;
@@ -177,7 +183,7 @@ function UploadPage() {
 			}
 			setLookupStatus(
 				filled.length > 0
-					? `Google Books'tan dolduruldu: ${filled.join(", ")}. Kaydetmeden önce kontrol et.`
+					? `${SOURCE_NAMES[result.source]} kaynağından dolduruldu: ${filled.join(", ")}. Kaydetmeden önce kontrol et.`
 					: "Alanlar zaten dolu; hiçbir şey değiştirilmedi.",
 			);
 		} catch {

@@ -9,7 +9,8 @@
 	"vars": {
 		"BETTER_AUTH_URL": "http://127.0.0.1:4173",
 		"UPLOAD_MAX_TOTAL_BYTES": "4096",
-		"GOOGLE_BOOKS_API_URL": "http://127.0.0.1:4175/books/v1/volumes"
+		"GOOGLE_BOOKS_API_URL": "http://127.0.0.1:4175/books/v1/volumes",
+		"OPEN_LIBRARY_API_URL": "http://127.0.0.1:4175/search.json"
 	},
 	"secrets": { "required": ["BETTER_AUTH_SECRET"] },
 	"d1_databases": [
