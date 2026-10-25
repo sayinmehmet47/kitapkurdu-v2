@@ -121,11 +121,13 @@ export function EpubReader({ id, title }: { id: string; title: string }) {
 	useEffect(() => {
 		if (status !== "loading") return;
 		const timeout = setTimeout(() => {
-			setReadError("Kitap açılırken zaman aşımı oluştu. Tekrar deneyebilirsin.");
+			setReadError(
+				"Kitap açılırken zaman aşımı oluştu. Tekrar deneyebilirsin.",
+			);
 			setStatus("error");
 		}, 45_000);
 		return () => clearTimeout(timeout);
-	}, [status, attempt]);
+	}, [status]);
 
 	function retry(resetPosition: boolean) {
 		setReadError("Bu kitap açılamadı.");
@@ -225,10 +227,18 @@ export function EpubReader({ id, title }: { id: string; title: string }) {
 									Dosya, bağlantı veya kayıtlı okuma konumu sorunlu olabilir.
 								</p>
 								<div className="mt-5 flex flex-wrap justify-center gap-2">
-									<button type="button" className="rounded-md border border-current/30 px-4 py-2" onClick={() => retry(false)}>
+									<button
+										type="button"
+										className="rounded-md border border-current/30 px-4 py-2"
+										onClick={() => retry(false)}
+									>
 										Tekrar dene
 									</button>
-									<button type="button" className="rounded-md border border-current/30 px-4 py-2" onClick={() => retry(true)}>
+									<button
+										type="button"
+										className="rounded-md border border-current/30 px-4 py-2"
+										onClick={() => retry(true)}
+									>
 										Baştan aç
 									</button>
 								</div>
