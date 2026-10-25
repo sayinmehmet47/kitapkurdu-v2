@@ -20,6 +20,12 @@
 			"migrations_dir": "drizzle"
 		}
 	],
+	"r2_buckets": [
+		{
+			"binding": "BOOKS",
+			"bucket_name": "kitapkurdu-books"
+		}
+	],
 	"observability": {
 		"enabled": true,
 		"traces": { "enabled": true }
@@ -47,6 +53,12 @@
 					"database_name": "kitapkurdu-v2-test",
 					"database_id": "b95ae0fe-4ccd-4247-b24c-fb3e634ed767",
 					"migrations_dir": "drizzle"
+				}
+			],
+			"r2_buckets": [
+				{
+					"binding": "BOOKS",
+					"bucket_name": "kitapkurdu-v2-test-books"
 				}
 			]
 		}

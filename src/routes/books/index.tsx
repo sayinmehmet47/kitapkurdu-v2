@@ -50,6 +50,12 @@ function BooksPage() {
 							<>Kitaplıkta {total} kitap var</>
 						)}
 					</p>
+					<Link
+						to="/books/new"
+						className={buttonVariants({ className: "mt-4" })}
+					>
+						Kitap Ekle
+					</Link>
 				</div>
 
 				<search className="w-full md:max-w-md">

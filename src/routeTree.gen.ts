@@ -15,7 +15,9 @@ import { Route as ShelfRouteImport } from './routes/shelf'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as BooksIndexRouteImport } from './routes/books/index'
 import { Route as BooksIdRouteImport } from './routes/books/$id'
+import { Route as BooksNewRouteImport } from './routes/books/new'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiBooksIdDownloadRouteImport } from './routes/api/books/$id/download'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -47,9 +49,19 @@ const BooksIdRoute = BooksIdRouteImport.update({
   path: '/books/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BooksNewRoute = BooksNewRouteImport.update({
+  id: '/books/new',
+  path: '/books/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBooksIdDownloadRoute = ApiBooksIdDownloadRouteImport.update({
+  id: '/api/books/$id/download',
+  path: '/api/books/$id/download',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -59,8 +71,10 @@ export interface FileRoutesByFullPath {
   '/shelf': typeof ShelfRoute
   '/sign-in': typeof SignInRoute
   '/books/$id': typeof BooksIdRoute
+  '/books/new': typeof BooksNewRoute
   '/books/': typeof BooksIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/books/$id/download': typeof ApiBooksIdDownloadRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -68,8 +82,10 @@ export interface FileRoutesByTo {
   '/shelf': typeof ShelfRoute
   '/sign-in': typeof SignInRoute
   '/books/$id': typeof BooksIdRoute
+  '/books/new': typeof BooksNewRoute
   '/books': typeof BooksIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/books/$id/download': typeof ApiBooksIdDownloadRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -78,8 +94,10 @@ export interface FileRoutesById {
   '/shelf': typeof ShelfRoute
   '/sign-in': typeof SignInRoute
   '/books/$id': typeof BooksIdRoute
+  '/books/new': typeof BooksNewRoute
   '/books/': typeof BooksIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/books/$id/download': typeof ApiBooksIdDownloadRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -89,8 +107,10 @@ export interface FileRouteTypes {
     | '/shelf'
     | '/sign-in'
     | '/books/$id'
+    | '/books/new'
     | '/books/'
     | '/api/auth/$'
+    | '/api/books/$id/download'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -98,8 +118,10 @@ export interface FileRouteTypes {
     | '/shelf'
     | '/sign-in'
     | '/books/$id'
+    | '/books/new'
     | '/books'
     | '/api/auth/$'
+    | '/api/books/$id/download'
   id:
     | '__root__'
     | '/'
@@ -107,8 +129,10 @@ export interface FileRouteTypes {
     | '/shelf'
     | '/sign-in'
     | '/books/$id'
+    | '/books/new'
     | '/books/'
     | '/api/auth/$'
+    | '/api/books/$id/download'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -117,8 +141,10 @@ export interface RootRouteChildren {
   ShelfRoute: typeof ShelfRoute
   SignInRoute: typeof SignInRoute
   BooksIdRoute: typeof BooksIdRoute
+  BooksNewRoute: typeof BooksNewRoute
   BooksIndexRoute: typeof BooksIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiBooksIdDownloadRoute: typeof ApiBooksIdDownloadRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -165,11 +191,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BooksIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/books/new': {
+      id: '/books/new'
+      path: '/books/new'
+      fullPath: '/books/new'
+      preLoaderRoute: typeof BooksNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
       fullPath: '/api/auth/$'
       preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/books/$id/download': {
+      id: '/api/books/$id/download'
+      path: '/api/books/$id/download'
+      fullPath: '/api/books/$id/download'
+      preLoaderRoute: typeof ApiBooksIdDownloadRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -181,8 +221,10 @@ const rootRouteChildren: RootRouteChildren = {
   ShelfRoute: ShelfRoute,
   SignInRoute: SignInRoute,
   BooksIdRoute: BooksIdRoute,
+  BooksNewRoute: BooksNewRoute,
   BooksIndexRoute: BooksIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiBooksIdDownloadRoute: ApiBooksIdDownloadRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
