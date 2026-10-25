@@ -36,6 +36,7 @@ let view;
 // Replayed on "hello": the parent page may hydrate after this frame has loaded.
 let readyMessage;
 let lastRelocate;
+let lastError;
 let settings = {
 	fontSize: 100,
 	lineHeight: 1.6,
@@ -204,6 +205,8 @@ window.addEventListener("message", (event) => {
 		post({ type: "frame-loaded" });
 		if (readyMessage) post(readyMessage);
 		if (lastRelocate) post(lastRelocate);
+		// A fast failure may happen before the parent has hydrated and subscribed.
+		if (lastError) post(lastError);
 	} else if (message.type === "settings") {
 		settings = { ...settings, ...message.settings };
 		applySettings();
@@ -225,6 +228,7 @@ open().catch((error) => {
 	const code =
 		error instanceof Error ? error.name.slice(0, 40) : "UnknownError";
 	console.warn("[epub-reader]", phase, code);
-	post({ type: "error", phase, code });
+	lastError = { type: "error", phase, code };
+	post(lastError);
 });
 post({ type: "frame-loaded" });
