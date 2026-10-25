@@ -9,6 +9,8 @@ import {
 	type MetadataQuery,
 	safeCoverUrl,
 } from "#/lib/book-metadata";
+import { coverKey, coverPath } from "#/lib/cover-image";
+import { readEpubMetadata } from "#/lib/epub";
 
 export const uploadInput = z.object({
 	name: z.string().trim().min(1).max(200),
@@ -117,47 +119,69 @@ export async function createBookWithFile(
 	const data = uploadInput.parse(input);
 	const bytes = decodeBase64(data.fileBase64);
 	const format = detectBookFormat(bytes);
-	await assertWithinLimits(db, userId, bytes.byteLength, limits);
+	// The EPUB's own package metadata and cover, read from the uploaded bytes
+	// (never trusted from the browser).
+	const file = format === "epub" ? readEpubMetadata(bytes) : {};
+	const embeddedCover = data.coverRemoved ? undefined : file.cover;
+	await assertWithinLimits(
+		db,
+		userId,
+		bytes.byteLength + (embeddedCover?.bytes.byteLength ?? 0),
+		limits,
+	);
 
-	const category = (data.category ?? "")
+	const typedCategories = (data.category ?? "")
 		.split(",")
 		.map((item) => item.trim())
 		.filter(Boolean);
+	const category =
+		typedCategories.length > 0 ? typedCategories : (file.categories ?? []);
+	const author = data.author || file.author;
+	const publisher = data.publisher || file.publisher;
+	const isbn = data.isbn || file.isbn;
+	const description = data.description || file.description;
 	const cover = safeCoverUrl(data.coverThumbnail);
 
-	// Fill only what the uploader left empty; typed values always win. A failed
-	// lookup returns null, so the upload continues without enrichment.
+	// Fill only what is still empty; typed values, then the file's own details,
+	// always win. A failed lookup returns null and the upload continues.
 	const missing =
-		!data.author ||
-		!data.publisher ||
-		!data.isbn ||
-		!data.description ||
+		!author ||
+		!publisher ||
+		!isbn ||
+		!description ||
 		category.length === 0 ||
-		(!cover && !data.coverRemoved);
+		(!embeddedCover && !cover && !data.coverRemoved);
 	const found =
-		lookup && missing
-			? await lookup({ isbn: data.isbn, name: data.name, author: data.author })
-			: null;
+		lookup && missing ? await lookup({ isbn, name: data.name, author }) : null;
 
+	const id = crypto.randomUUID();
 	const key = `${userId}/${crypto.randomUUID()}.${format}`;
 	await bucket.put(key, bytes, {
 		httpMetadata: { contentType: bookFileMime(format) },
 	});
+	if (embeddedCover) {
+		await bucket.put(coverKey(id), embeddedCover.bytes, {
+			httpMetadata: { contentType: embeddedCover.type },
+		});
+	}
 
 	return db
 		.insert(book)
 		.values({
+			id,
 			name: data.name,
-			author: data.author || found?.author || null,
-			publisher: data.publisher || found?.publisher || null,
-			isbn: data.isbn || found?.isbn || null,
-			description: data.description || found?.description || null,
+			author: author || found?.author || null,
+			publisher: publisher || found?.publisher || null,
+			isbn: isbn || found?.isbn || null,
+			description: description || found?.description || null,
 			category: category.length > 0 ? category : (found?.categories ?? []),
 			coverThumbnail: data.coverRemoved
 				? null
-				: (cover ?? found?.coverThumbnail ?? null),
+				: embeddedCover
+					? coverPath(id)
+					: (cover ?? found?.coverThumbnail ?? null),
 			coverSmallThumbnail:
-				data.coverRemoved || cover
+				data.coverRemoved || embeddedCover || cover
 					? null
 					: (found?.coverSmallThumbnail ?? null),
 			language: data.language,

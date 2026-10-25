@@ -18,6 +18,7 @@ import { Route as BooksIdRouteImport } from './routes/books/$id'
 import { Route as BooksNewRouteImport } from './routes/books/new'
 import { Route as ReadIdRouteImport } from './routes/read/$id'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiBooksIdCoverRouteImport } from './routes/api/books/$id/cover'
 import { Route as ApiBooksIdDownloadRouteImport } from './routes/api/books/$id/download'
 
 const IndexRoute = IndexRouteImport.update({
@@ -65,6 +66,11 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiBooksIdCoverRoute = ApiBooksIdCoverRouteImport.update({
+  id: '/api/books/$id/cover',
+  path: '/api/books/$id/cover',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiBooksIdDownloadRoute = ApiBooksIdDownloadRouteImport.update({
   id: '/api/books/$id/download',
   path: '/api/books/$id/download',
@@ -81,6 +87,7 @@ export interface FileRoutesByFullPath {
   '/read/$id': typeof ReadIdRoute
   '/books/': typeof BooksIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/books/$id/cover': typeof ApiBooksIdCoverRoute
   '/api/books/$id/download': typeof ApiBooksIdDownloadRoute
 }
 export interface FileRoutesByTo {
@@ -93,6 +100,7 @@ export interface FileRoutesByTo {
   '/read/$id': typeof ReadIdRoute
   '/books': typeof BooksIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/books/$id/cover': typeof ApiBooksIdCoverRoute
   '/api/books/$id/download': typeof ApiBooksIdDownloadRoute
 }
 export interface FileRoutesById {
@@ -106,6 +114,7 @@ export interface FileRoutesById {
   '/read/$id': typeof ReadIdRoute
   '/books/': typeof BooksIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/books/$id/cover': typeof ApiBooksIdCoverRoute
   '/api/books/$id/download': typeof ApiBooksIdDownloadRoute
 }
 export interface FileRouteTypes {
@@ -120,6 +129,7 @@ export interface FileRouteTypes {
     | '/read/$id'
     | '/books/'
     | '/api/auth/$'
+    | '/api/books/$id/cover'
     | '/api/books/$id/download'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -132,6 +142,7 @@ export interface FileRouteTypes {
     | '/read/$id'
     | '/books'
     | '/api/auth/$'
+    | '/api/books/$id/cover'
     | '/api/books/$id/download'
   id:
     | '__root__'
@@ -144,6 +155,7 @@ export interface FileRouteTypes {
     | '/read/$id'
     | '/books/'
     | '/api/auth/$'
+    | '/api/books/$id/cover'
     | '/api/books/$id/download'
   fileRoutesById: FileRoutesById
 }
@@ -157,6 +169,7 @@ export interface RootRouteChildren {
   ReadIdRoute: typeof ReadIdRoute
   BooksIndexRoute: typeof BooksIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiBooksIdCoverRoute: typeof ApiBooksIdCoverRoute
   ApiBooksIdDownloadRoute: typeof ApiBooksIdDownloadRoute
 }
 
@@ -225,6 +238,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/books/$id/cover': {
+      id: '/api/books/$id/cover'
+      path: '/api/books/$id/cover'
+      fullPath: '/api/books/$id/cover'
+      preLoaderRoute: typeof ApiBooksIdCoverRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/books/$id/download': {
       id: '/api/books/$id/download'
       path: '/api/books/$id/download'
@@ -245,6 +265,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReadIdRoute: ReadIdRoute,
   BooksIndexRoute: BooksIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiBooksIdCoverRoute: ApiBooksIdCoverRoute,
   ApiBooksIdDownloadRoute: ApiBooksIdDownloadRoute,
 }
 export const routeTree = rootRouteImport

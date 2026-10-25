@@ -81,3 +81,29 @@ export function readerEpub() {
 		"EPUB/three.xhtml": chapter("Üçüncü bölüm"),
 	});
 }
+
+// A tiny real PNG (20x30), used as an EPUB cover and in place of remote covers.
+export function coverPng() {
+	return Uint8Array.from(
+		atob(
+			"iVBORw0KGgoAAAANSUhEUgAAABQAAAAeCAIAAACjcKk8AAAAHklEQVR4nGPQ98ojGzGMah7VPKp5VPOo5lHNw1kzAP+IHYdrq1oDAAAAAElFTkSuQmCC",
+		),
+		(char) => char.charCodeAt(0),
+	);
+}
+
+// An EPUB with full package metadata and an EPUB 3 cover image.
+export function metadataEpub({
+	isbn = "urn:isbn:978-975-07-1938-7",
+}: {
+	isbn?: string;
+} = {}) {
+	return sampleEpub({
+		"EPUB/package.opf": `<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf" xmlns:opf="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id">
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="id">${isbn}</dc:identifier><dc:title>Kürk Mantolu Madonna</dc:title><dc:creator opf:role="aut">Sabahattin Ali</dc:creator><dc:creator opf:role="trl">Bir Çevirmen</dc:creator><dc:publisher>Yapı Kredi Yayınları</dc:publisher><dc:language>tr</dc:language><dc:description>&lt;p&gt;Raif Efendi'nin   hikâyesi.&lt;/p&gt;</dc:description><dc:subject>Roman</dc:subject><dc:subject>Türk Edebiyatı</dc:subject></metadata>
+<manifest><item id="cover" href="images/cover.png" media-type="image/png" properties="cover-image"/><item id="one" href="one.xhtml" media-type="application/xhtml+xml"/><item id="two" href="two.xhtml" media-type="application/xhtml+xml"/></manifest>
+<spine><itemref idref="one"/><itemref idref="two"/></spine></package>`,
+		"EPUB/images/cover.png": coverPng(),
+	});
+}

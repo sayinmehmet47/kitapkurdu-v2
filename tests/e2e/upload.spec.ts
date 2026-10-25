@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import { metadataEpub, samplePdf } from "../fixtures/book-files";
 import { capture, expect, signUp, test } from "./fixtures";
 
 test("signed-in user can upload a book PDF and open its detail page", async ({
@@ -148,7 +149,7 @@ test("an upload still works when Google Books has no match", async ({
 	await page.getByLabel("Ad", { exact: true }).fill("Hiç Bilinmeyen Kitap");
 	await page.getByRole("button", { name: "Bilgileri getir" }).click();
 	await expect(page.getByRole("status")).toHaveText(
-		"Eşleşen kitap bulunamadı.",
+		"Çevrimiçi eşleşen kitap bulunamadı.",
 	);
 	await page.locator('input[type="file"]').setInputFiles({
 		name: "bilinmeyen.pdf",
@@ -168,7 +169,7 @@ test("the form says when no book source is available", async ({ page }) => {
 	await page.getByLabel("Ad", { exact: true }).fill("Kota Doldu");
 	await page.getByRole("button", { name: "Bilgileri getir" }).click();
 	await expect(page.getByRole("status")).toHaveText(
-		"Kitap bilgileri şu an getirilemiyor; formu elle doldurabilirsin.",
+		"Çevrimiçi kitap bilgileri şu an getirilemiyor; formu elle tamamlayabilirsin.",
 	);
 	await expect(page.getByLabel("Yazar", { exact: true })).toHaveValue("");
 });
@@ -236,4 +237,82 @@ test("upload still succeeds when Open Library work details are unavailable", asy
 	await expect(
 		page.getByText("Open Library Yazarı", { exact: true }),
 	).toBeVisible();
+});
+
+test("choosing an EPUB fills its details and cover from the file itself", async ({
+	page,
+}, info) => {
+	await signUp(page);
+	await page.goto("/books/new");
+	await page.locator('input[type="file"]').setInputFiles({
+		name: "madonna.epub",
+		mimeType: "application/epub+zip",
+		buffer: Buffer.from(metadataEpub()),
+	});
+
+	// No button: the file's own details arrive as soon as it is chosen.
+	await expect(page.getByRole("status")).toContainText(
+		"Dosyadan okundu: ad, yazar, yayınevi, ISBN, açıklama, kategoriler, kapak.",
+	);
+	await expect(page.getByLabel("Ad", { exact: true })).toHaveValue(
+		"Kürk Mantolu Madonna",
+	);
+	await expect(page.getByLabel("Yazar", { exact: true })).toHaveValue(
+		"Sabahattin Ali",
+	);
+	await expect(page.getByLabel("Yayınevi", { exact: true })).toHaveValue(
+		"Yapı Kredi Yayınları",
+	);
+	await expect(page.getByLabel("ISBN", { exact: true })).toHaveValue(
+		"9789750719387",
+	);
+	await expect(
+		page.getByLabel("Kategoriler (virgülle)", { exact: true }),
+	).toHaveValue("Roman, Türk Edebiyatı");
+	await expect(page.getByLabel("Dil", { exact: true })).toHaveValue("turkish");
+	await expect(page.locator('[data-slot="book-cover"] img')).toHaveAttribute(
+		"src",
+		/^blob:/,
+	);
+	await capture(page, info, "upload-from-epub");
+
+	await page.getByRole("button", { name: "Yükle", exact: true }).click();
+	await expect(page).toHaveURL(/\/books\/[0-9a-f-]{36}$/);
+	const id = new URL(page.url()).pathname.split("/").at(-1);
+	const cover = page.locator('[data-slot="book-cover"] img');
+	await expect(cover).toHaveAttribute("src", `/api/books/${id}/cover`);
+	await expect
+		.poll(() => cover.evaluate((image: HTMLImageElement) => image.naturalWidth))
+		.toBeGreaterThan(0);
+	const response = await page.request.get(`/api/books/${id}/cover`);
+	expect(response.status()).toBe(200);
+	expect(response.headers()["content-type"]).toBe("image/png");
+	expect(response.headers()["x-content-type-options"]).toBe("nosniff");
+	await capture(page, info, "uploaded-epub-cover");
+});
+
+test("choosing a file looks up the remaining details online by itself", async ({
+	page,
+}) => {
+	await signUp(page);
+	await page.goto("/books/new");
+	await page.locator('input[type="file"]').setInputFiles({
+		name: "Kürk Mantolu Madonna -- Sabahattin Ali Ali Sabahattin -- ( WeLib.org ).pdf",
+		mimeType: "application/pdf",
+		buffer: Buffer.from(samplePdf()),
+	});
+
+	await expect(page.getByRole("status")).toContainText(
+		"Dosyadan okundu: ad, yazar. Google Books kaynağından tamamlandı:",
+	);
+	await expect(page.getByLabel("Ad", { exact: true })).toHaveValue(
+		"Kürk Mantolu Madonna",
+	);
+	await expect(page.getByLabel("Yazar", { exact: true })).toHaveValue(
+		"Sabahattin Ali",
+	);
+	await expect(page.getByLabel("Yayınevi", { exact: true })).toHaveValue(
+		"Yapı Kredi Yayınları",
+	);
+	await expect(page.locator('[data-slot="book-cover"] img')).toHaveCount(1);
 });
