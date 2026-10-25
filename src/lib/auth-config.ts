@@ -25,6 +25,15 @@ export function createAuth(
 			transaction: false,
 		}),
 		emailAndPassword: { enabled: true },
+		user: {
+			additionalFields: {
+				role: {
+					type: ["user", "admin"],
+					defaultValue: "user",
+					input: false,
+				},
+			},
+		},
 		advanced: { ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] } },
 		rateLimit: { enabled: true, storage: "database" },
 		plugins: [tanstackStartCookies()],

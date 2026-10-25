@@ -7,11 +7,18 @@ import { z } from "zod";
 import { BookCover } from "#/components/books/BookCover";
 import { CategoryList } from "#/components/books/CategoryList";
 import { Button, buttonVariants } from "#/components/ui/button";
+import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { Textarea } from "#/components/ui/textarea";
 import { createDb } from "#/db";
 import { getAuth } from "#/lib/auth";
-import { getBookById } from "#/lib/books";
+import {
+	bookUpdateInput,
+	deleteBookById,
+	getBookById,
+	markBookDuplicate,
+	updateBook,
+} from "#/lib/books";
 import {
 	getMyRating,
 	getRatingSummary,
@@ -45,6 +52,7 @@ const getBookDetail = createServerFn({ method: "GET" })
 			ratings,
 			myRating,
 			isSignedIn: Boolean(session),
+			isAdmin: session?.user?.role === "admin",
 		};
 	});
 
@@ -56,6 +64,56 @@ const submitRating = createServerFn({ method: "POST" })
 		});
 		if (!session) throw new Error("Sign in before rating.");
 		await upsertRating(createDb(env.DB), session.user.id, data);
+		return { success: true };
+	});
+
+const adminEditInput = z.object({
+	id: z.string().min(1).max(64),
+	...bookUpdateInput.shape,
+});
+
+const submitBookEdit = createServerFn({ method: "POST" })
+	.validator(adminEditInput)
+	.handler(async ({ data }) => {
+		const session = await getAuth().api.getSession({
+			headers: getRequestHeaders(),
+		});
+		if (session?.user?.role !== "admin") {
+			throw new Error("Yönetici izni gerekiyor.");
+		}
+		const { id, ...fields } = data;
+		await updateBook(createDb(env.DB), id, fields);
+		return { success: true };
+	});
+
+const submitDeleteBook = createServerFn({ method: "POST" })
+	.validator(z.object({ id: z.string().min(1).max(64) }))
+	.handler(async ({ data }) => {
+		const session = await getAuth().api.getSession({
+			headers: getRequestHeaders(),
+		});
+		if (session?.user?.role !== "admin") {
+			throw new Error("Yönetici izni gerekiyor.");
+		}
+		await deleteBookById(createDb(env.DB), data.id);
+		return { success: true };
+	});
+
+const submitMarkDuplicate = createServerFn({ method: "POST" })
+	.validator(
+		z.object({
+			id: z.string().min(1).max(64),
+			canonicalId: z.string().min(1).max(64),
+		}),
+	)
+	.handler(async ({ data }) => {
+		const session = await getAuth().api.getSession({
+			headers: getRequestHeaders(),
+		});
+		if (session?.user?.role !== "admin") {
+			throw new Error("Yönetici izni gerekiyor.");
+		}
+		await markBookDuplicate(createDb(env.DB), data.id, data.canonicalId);
 		return { success: true };
 	});
 
@@ -158,6 +216,188 @@ function RatingForm({
 	);
 }
 
+function AdminPanel({
+	item,
+}: {
+	item: {
+		id: string;
+		name: string;
+		author: string | null;
+		publisher: string | null;
+		isbn: string | null;
+		description: string | null;
+		category: string[] | null;
+		language: "turkish" | "english";
+	};
+}) {
+	const router = useRouter();
+	const [name, setName] = useState(item.name);
+	const [author, setAuthor] = useState(item.author ?? "");
+	const [publisher, setPublisher] = useState(item.publisher ?? "");
+	const [isbn, setIsbn] = useState(item.isbn ?? "");
+	const [description, setDescription] = useState(item.description ?? "");
+	const [category, setCategory] = useState((item.category ?? []).join(", "));
+	const [language, setLanguage] = useState(item.language);
+	const [canonicalId, setCanonicalId] = useState("");
+	const [error, setError] = useState<string | null>(null);
+
+	const save = async (event: React.FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		setError(null);
+		try {
+			await submitBookEdit({
+				data: {
+					id: item.id,
+					name,
+					author,
+					publisher,
+					isbn,
+					description,
+					category,
+					language,
+				},
+			});
+			router.invalidate();
+		} catch {
+			setError("Kaydedilemedi. Lütfen tekrar deneyin.");
+		}
+	};
+
+	const markDup = async (event: React.FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		setError(null);
+		try {
+			await submitMarkDuplicate({ data: { id: item.id, canonicalId } });
+			setCanonicalId("");
+			router.invalidate();
+		} catch {
+			setError("Kopya olarak işaretlenemedi.");
+		}
+	};
+
+	const remove = async () => {
+		if (!window.confirm("Bu kitabı silmek istediğinize emin misiniz?")) return;
+		setError(null);
+		try {
+			await submitDeleteBook({ data: { id: item.id } });
+			router.navigate({ to: "/books" });
+		} catch {
+			setError("Silinemedi.");
+		}
+	};
+
+	return (
+		<section
+			aria-labelledby="admin-heading"
+			className="mt-16 border-t border-border pt-10"
+		>
+			<h2 id="admin-heading" className="mb-6 text-2xl font-semibold">
+				Yönetici
+			</h2>
+
+			<div className="rounded-md border border-border bg-card p-4 sm:p-6">
+				<form onSubmit={save} className="space-y-3">
+					<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+						<label htmlFor="admin-name" className="text-sm">
+							<span className="mb-1 block font-semibold">Ad</span>
+							<Input
+								id="admin-name"
+								value={name}
+								onChange={(e) => setName(e.target.value)}
+							/>
+						</label>
+						<label htmlFor="admin-author" className="text-sm">
+							<span className="mb-1 block font-semibold">Yazar</span>
+							<Input
+								id="admin-author"
+								value={author}
+								onChange={(e) => setAuthor(e.target.value)}
+							/>
+						</label>
+						<label htmlFor="admin-publisher" className="text-sm">
+							<span className="mb-1 block font-semibold">Yayınevi</span>
+							<Input
+								id="admin-publisher"
+								value={publisher}
+								onChange={(e) => setPublisher(e.target.value)}
+							/>
+						</label>
+						<label htmlFor="admin-isbn" className="text-sm">
+							<span className="mb-1 block font-semibold">ISBN</span>
+							<Input
+								id="admin-isbn"
+								value={isbn}
+								onChange={(e) => setIsbn(e.target.value)}
+							/>
+						</label>
+						<label htmlFor="admin-language" className="text-sm">
+							<span className="mb-1 block font-semibold">Dil</span>
+							<select
+								id="admin-language"
+								value={language}
+								onChange={(e) =>
+									setLanguage(e.target.value as "turkish" | "english")
+								}
+								className="h-9 w-full rounded-md border border-input bg-card px-3 text-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+							>
+								<option value="turkish">Türkçe</option>
+								<option value="english">English</option>
+							</select>
+						</label>
+						<label htmlFor="admin-category" className="text-sm">
+							<span className="mb-1 block font-semibold">
+								Kategoriler (virgülle)
+							</span>
+							<Input
+								id="admin-category"
+								value={category}
+								onChange={(e) => setCategory(e.target.value)}
+							/>
+						</label>
+					</div>
+					<label htmlFor="admin-description" className="block text-sm">
+						<span className="mb-1 block font-semibold">Açıklama</span>
+						<Textarea
+							id="admin-description"
+							value={description}
+							onChange={(e) => setDescription(e.target.value)}
+							rows={3}
+						/>
+					</label>
+					<Button type="submit">Kaydet</Button>
+				</form>
+			</div>
+
+			<div className="mt-4 rounded-md border border-border bg-card p-4 sm:p-6">
+				<form onSubmit={markDup} className="flex flex-col gap-2 sm:flex-row">
+					<Input
+						value={canonicalId}
+						onChange={(e) => setCanonicalId(e.target.value)}
+						placeholder="Asıl kitabın kimliği"
+						aria-label="Asıl kitabın kimliği"
+						className="min-w-0 flex-1"
+					/>
+					<Button type="submit" variant="outline">
+						Kopya olarak işaretle
+					</Button>
+				</form>
+			</div>
+
+			<div className="mt-4 rounded-md border border-border bg-card p-4 sm:p-6">
+				<Button type="button" onClick={remove} variant="destructive">
+					Kitabı sil
+				</Button>
+			</div>
+
+			{error ? (
+				<p role="alert" className="mt-2 text-sm text-destructive">
+					{error}
+				</p>
+			) : null}
+		</section>
+	);
+}
+
 function BookDetailPage() {
 	const data = Route.useLoaderData();
 	const { id } = Route.useParams();
@@ -179,7 +419,7 @@ function BookDetailPage() {
 		);
 	}
 
-	const { item, summary, ratings, myRating, isSignedIn } = data;
+	const { item, summary, ratings, myRating, isSignedIn, isAdmin } = data;
 	const language = item.language === "english" ? "English" : "Türkçe";
 	const average = Number(summary?.average ?? 0);
 	const count = summary?.count ?? 0;
@@ -314,6 +554,8 @@ function BookDetailPage() {
 					</div>
 				</div>
 			</section>
+
+			{isAdmin ? <AdminPanel key={item.id} item={item} /> : null}
 		</main>
 	);
 }

@@ -5,6 +5,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { hashPassword } from "better-auth/crypto";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 process.chdir(root);
@@ -55,6 +56,10 @@ delete env.DATABASE_URL;
 delete env.BETTER_AUTH_SECRET;
 delete env.BETTER_AUTH_URL;
 delete env.CLOUDFLARE_ENV;
+// Only the seed step needs this synthetic credential, not Vite or the Worker.
+const adminPassword =
+	env.E2E_ADMIN_PASSWORD ?? randomBytes(24).toString("base64url");
+delete env.E2E_ADMIN_PASSWORD;
 
 // Deterministic test-only catalog so the browse UI has something to render.
 // Covers are omitted on purpose to avoid external image requests in tests.
@@ -101,6 +106,30 @@ try {
 		configPath,
 		"--persist-to",
 		statePath,
+	]);
+	const seedPath = join(statePath, "admin-seed.sql");
+	const passwordHash = await hashPassword(adminPassword);
+	await writeFile(
+		seedPath,
+		`
+INSERT INTO user (id, name, email, role) VALUES
+('e2e-admin', 'Browser Test Admin', 'admin@example.test', 'admin');
+INSERT INTO account (id, account_id, provider_id, user_id, password) VALUES
+('e2e-admin-account', 'e2e-admin', 'credential', 'e2e-admin', '${passwordHash}');
+`,
+		{ mode: 0o600 },
+	);
+	await run("wrangler/bin/wrangler.js", [
+		"d1",
+		"execute",
+		"DB",
+		"--local",
+		"--config",
+		configPath,
+		"--persist-to",
+		statePath,
+		"--file",
+		seedPath,
 	]);
 	await run("wrangler/bin/wrangler.js", [
 		"d1",

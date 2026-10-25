@@ -1,4 +1,14 @@
-import { and, count, desc, eq, isNull, like, or, type SQL } from "drizzle-orm";
+import {
+	and,
+	count,
+	desc,
+	eq,
+	isNull,
+	like,
+	or,
+	type SQL,
+	sql,
+} from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "#/db";
 import { book } from "#/db/schema";
@@ -18,15 +28,17 @@ export async function listBooks(db: Database, input: unknown) {
 	const conditions: (SQL<unknown> | undefined)[] = [isNull(book.duplicateOfId)];
 
 	if (q) {
-		// D1 has no full-text index; MVP uses LIKE (case-insensitive for ASCII).
-		// Turkish accent folding and FTS5 are a follow-up.
+		// Literal substring search avoids D1's short LIKE-pattern byte limit.
+		// SQLite lower() folds ASCII only; Turkish accent folding remains a follow-up.
 		conditions.push(
 			or(
-				like(book.name, `%${q}%`),
-				like(book.author, `%${q}%`),
-				like(book.description, `%${q}%`),
-				like(book.isbn, `%${q}%`),
-				like(book.publisher, `%${q}%`),
+				...[
+					book.name,
+					book.author,
+					book.description,
+					book.isbn,
+					book.publisher,
+				].map((column) => sql`instr(lower(${column}), lower(${q})) > 0`),
 			),
 		);
 	}
@@ -78,4 +90,53 @@ export async function listCategories(db: Database) {
 		for (const item of row.category ?? []) categories.add(item);
 	}
 	return [...categories].sort();
+}
+
+export const bookUpdateInput = z.object({
+	name: z.string().trim().min(1).max(200),
+	author: z.string().trim().max(200).optional(),
+	publisher: z.string().trim().max(200).optional(),
+	isbn: z.string().trim().max(32).optional(),
+	description: z.string().trim().max(5000).optional(),
+	category: z.string().trim().max(500).optional(),
+	language: z.enum(["turkish", "english"]).default("turkish"),
+});
+
+export function updateBook(db: Database, id: string, input: unknown) {
+	const data = bookUpdateInput.parse(input);
+	const category = (data.category ?? "")
+		.split(",")
+		.map((item) => item.trim())
+		.filter(Boolean);
+	return db
+		.update(book)
+		.set({
+			name: data.name,
+			author: data.author || null,
+			publisher: data.publisher || null,
+			isbn: data.isbn || null,
+			description: data.description || null,
+			category,
+			language: data.language,
+		})
+		.where(eq(book.id, id))
+		.returning()
+		.get();
+}
+
+export function deleteBookById(db: Database, id: string) {
+	return db.delete(book).where(eq(book.id, id)).returning().get();
+}
+
+export function markBookDuplicate(
+	db: Database,
+	id: string,
+	canonicalId: string,
+) {
+	return db
+		.update(book)
+		.set({ duplicateOfId: canonicalId })
+		.where(eq(book.id, id))
+		.returning()
+		.get();
 }
