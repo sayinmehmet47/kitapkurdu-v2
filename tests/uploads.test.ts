@@ -243,6 +243,7 @@ test("book uploads store the file in R2 and the metadata in D1", {
 		{
 			...pdf("Elle Yazılmış"),
 			author: "Elle Yazar",
+			description: "Kendi yazdığım açıklama.",
 			category: "Roman",
 			isbn: "123",
 			coverThumbnail: "https://evil.test/cover.jpg",
@@ -256,6 +257,11 @@ test("book uploads store the file in R2 and the metadata in D1", {
 		author: "Elle Yazar",
 	});
 	assert.equal(typed.author, "Elle Yazar", "Typed author is kept");
+	assert.equal(
+		typed.description,
+		"Kendi yazdığım açıklama.",
+		"Typed description is kept even when enrichment returns another one",
+	);
 	assert.deepEqual(typed.category, ["Roman"], "Typed categories are kept");
 	assert.equal(typed.isbn, "123", "Typed ISBN is kept");
 	assert.equal(

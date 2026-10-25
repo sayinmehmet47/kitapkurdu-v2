@@ -26,6 +26,7 @@ const volume = {
 };
 
 const work = {
+	key: "/works/OL12345W",
 	title: "Tutunamayanlar",
 	author_name: ["Oğuz Atay"],
 	publisher: ["İletişim", "Sinan"],
@@ -74,6 +75,130 @@ const unavailable = {
 	status: 503,
 	body: { error: { errors: [{ reason: "backendFailed" }] } },
 };
+
+test("Open Library gets string and object descriptions from the selected work", async () => {
+	for (const description of [
+		"  Bir romanın hikâyesi.  ",
+		{ value: "  Bir romanın hikâyesi.  " },
+	]) {
+		const s = stub({
+			google: [{ body: { items: [] } }],
+			openLibrary: [
+				{
+					body: {
+						docs: [
+							{
+								key: "/works/OL1W",
+								title: work.title,
+								author_name: work.author_name,
+							},
+							{ ...work, key: "/works/OL2W", title: "Başka kitap" },
+							work,
+						],
+					},
+				},
+				{ body: { description } },
+			],
+		});
+		const result = await lookupBookMetadata({ name: work.title }, s.config);
+		assert.equal(
+			result.status === "found" && result.metadata.description,
+			"Bir romanın hikâyesi.",
+		);
+		assert.equal(
+			s.openLibrary().length,
+			2,
+			"Only the selected work is fetched",
+		);
+		assert.equal(
+			s.openLibrary()[1].href,
+			"https://openlibrary.org/works/OL12345W.json",
+		);
+		assert.ok(
+			s.openLibrary()[0].searchParams.get("fields")?.split(",").includes("key"),
+		);
+	}
+});
+
+test("optional work detail failures and absent descriptions keep the search match", async () => {
+	for (const reply of [
+		unavailable,
+		new TypeError("network down"),
+		new DOMException("timed out", "TimeoutError"),
+		{ body: {} },
+		{ body: { description: "   " } },
+		{ body: { description: { value: 42 } } },
+		{ body: { description: ["not a description"] } },
+	]) {
+		const s = stub({
+			openLibrary: [{ body: { docs: [work] } }, reply],
+		});
+		const result = await lookupBookMetadata({ name: work.title }, s.config);
+		assert.equal(result.status, "found");
+		if (result.status !== "found") continue;
+		assert.equal(result.source, "openlibrary");
+		assert.equal(result.metadata.author, "Oğuz Atay");
+		assert.equal(result.metadata.description, undefined);
+		assert.equal(s.openLibrary().length, 2, "Optional details are not retried");
+	}
+});
+
+test("Open Library descriptions fit the upload description limit", async () => {
+	const s = stub({
+		openLibrary: [
+			{ body: { docs: [work] } },
+			{ body: { description: { value: `  ${"a".repeat(6000)}  ` } } },
+		],
+	});
+	const result = await lookupBookMetadata({ isbn: "9789754700114" }, s.config);
+	assert.equal(
+		result.status === "found" && result.metadata.description,
+		"a".repeat(5000),
+	);
+});
+
+test("untrusted or missing work keys never cause a detail request", async () => {
+	for (const key of [
+		undefined,
+		42,
+		"https://evil.test/works/OL1W",
+		"//evil.test/OL1W",
+		"/works/../OL1W",
+		"/works/OL1W?secret=x",
+		"/works/OL1W#x",
+		"/books/OL1M",
+		"/works/OL1W\n",
+	]) {
+		const s = stub({ openLibrary: [{ body: { docs: [{ ...work, key }] } }] });
+		const result = await lookupBookMetadata({ name: work.title }, s.config);
+		assert.equal(result.status, "found");
+		assert.equal(s.openLibrary().length, 1);
+	}
+});
+
+test("work details use the configured local origin without query parameters", async () => {
+	const calls: URL[] = [];
+	const result = await lookupBookMetadata(
+		{ name: work.title },
+		{
+			openLibraryUrl: "http://127.0.0.1:4175/search.json?local=1",
+			fetch: (async (input: URL) => {
+				const url = new URL(input);
+				calls.push(url);
+				if (url.pathname === "/works/OL12345W.json")
+					return Response.json({ description: "Yerel açıklama." });
+				return Response.json(
+					url.pathname === "/search.json" ? { docs: [work] } : { items: [] },
+				);
+			}) as unknown as typeof fetch,
+		},
+	);
+	assert.equal(
+		result.status === "found" && result.metadata.description,
+		"Yerel açıklama.",
+	);
+	assert.equal(calls.at(-1)?.href, "http://127.0.0.1:4175/works/OL12345W.json");
+});
 
 test("Google Books is asked first, by ISBN, with the key and country", async () => {
 	const s = stub({

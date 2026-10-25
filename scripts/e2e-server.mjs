@@ -38,6 +38,22 @@ const stubVolume = {
 const booksApi = createHttpServer((request, response) => {
 	const url = new URL(request.url ?? "/", "http://127.0.0.1:4175");
 	const q = url.searchParams.get("q");
+	if (url.pathname === "/works/OL2W.json") {
+		response.writeHead(503, { "content-type": "application/json" });
+		response.end(JSON.stringify({ error: "unavailable" }));
+		return;
+	}
+	if (url.pathname === "/works/OL1W.json") {
+		response.writeHead(200, { "content-type": "application/json" });
+		response.end(
+			JSON.stringify({
+				description: {
+					value: "Open Library üzerinden gelen örnek kitap açıklaması.",
+				},
+			}),
+		);
+		return;
+	}
 	if (url.pathname === "/search.json") {
 		// Open Library: down for "Kota Doldu"; only knows the book Google fails on.
 		if (url.searchParams.get("title") === "Kota Doldu") {
@@ -45,14 +61,17 @@ const booksApi = createHttpServer((request, response) => {
 			response.end("unavailable");
 			return;
 		}
-		const known = url.searchParams.get("title") === "Yedekten Gelen Kitap";
+		const title = url.searchParams.get("title");
+		const detailUnavailable = title === "Açıklaması Alınamayan Kitap";
+		const known = title === "Yedekten Gelen Kitap" || detailUnavailable;
 		response.writeHead(200, { "content-type": "application/json" });
 		response.end(
 			JSON.stringify({
 				docs: known
 					? [
 							{
-								title: "Yedekten Gelen Kitap",
+								key: detailUnavailable ? "/works/OL2W" : "/works/OL1W",
+								title,
 								author_name: ["Open Library Yazarı"],
 								subject: ["Roman"],
 								cover_i: 1,
