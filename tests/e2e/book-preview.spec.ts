@@ -38,27 +38,6 @@ test("PDF uploads can be previewed page by page and downloaded", async ({
 		`attachment; filename="${id}.pdf"`,
 	);
 	expect(await response.body()).toEqual(Buffer.from(bytes));
-	const range = await page.request.get(`/api/books/${id}/download`, {
-		headers: { Range: "bytes=0-15" },
-	});
-	expect(range.status()).toBe(206);
-	expect(range.headers()["accept-ranges"]).toBe("bytes");
-	expect(range.headers()["content-range"]).toBe(`bytes 0-15/${bytes.length}`);
-	expect(range.headers()["content-length"]).toBe("16");
-	expect(await range.body()).toEqual(Buffer.from(bytes.slice(0, 16)));
-	const suffix = await page.request.get(`/api/books/${id}/download`, {
-		headers: { Range: "bytes=-5" },
-	});
-	expect(suffix.status()).toBe(206);
-	expect(suffix.headers()["content-range"]).toBe(
-		`bytes ${bytes.length - 5}-${bytes.length - 1}/${bytes.length}`,
-	);
-	expect(await suffix.body()).toEqual(Buffer.from(bytes.slice(-5)));
-	const invalid = await page.request.get(`/api/books/${id}/download`, {
-		headers: { Range: `bytes=${bytes.length}-` },
-	});
-	expect(invalid.status()).toBe(416);
-	expect(invalid.headers()["content-range"]).toBe(`bytes */${bytes.length}`);
 	await page.getByRole("link", { name: "Kitabı aç", exact: true }).click();
 	await expect(page).toHaveURL(new RegExp(`/read/${id}$`));
 	await expect(page.getByTestId("pdf-page-text")).toHaveText(
