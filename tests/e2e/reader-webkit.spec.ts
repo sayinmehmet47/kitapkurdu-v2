@@ -64,5 +64,7 @@ test("a temporary EPUB download error explains the issue and allows retry", asyn
 	await expect(page.getByText("Kitap açılıyor…")).toHaveCount(0, {
 		timeout: 20_000,
 	});
-	await expect(page.getByRole("button", { name: "Sonraki sayfa" })).toBeVisible();
+	await expect(
+		page.getByRole("button", { name: "Sonraki sayfa" }),
+	).toBeVisible();
 });
