@@ -52,7 +52,6 @@ function progress(next) {
 	post({ type: "progress", phase });
 }
 
-
 function storage(action, value) {
 	try {
 		if (action === "get") return localStorage.getItem(positionKey);
@@ -222,7 +221,8 @@ open().catch((error) => {
 	status.textContent = "Bu kitap açılamadı.";
 	// A category and stage are enough to diagnose an iPhone issue without
 	// displaying potentially sensitive book metadata or stack traces.
-	const code = error instanceof Error ? error.name.slice(0, 40) : "UnknownError";
+	const code =
+		error instanceof Error ? error.name.slice(0, 40) : "UnknownError";
 	console.warn("[epub-reader]", phase, code);
 	post({ type: "error", phase, code });
 });
