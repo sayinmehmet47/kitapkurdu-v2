@@ -34,3 +34,34 @@ test("vendored pdf.js decoders and fonts match the installed pdfjs-dist", async 
 		}
 	}
 });
+
+test("the vendored pdf.js viewer matches pdfjs-dist and carries our settings", async () => {
+	const viewer = new URL("../public/vendor/pdfjs-viewer/", import.meta.url);
+	const { version } = JSON.parse(
+		await readFile(new URL("package.json", pkg), "utf8"),
+	);
+	assert.match(
+		await readFile(new URL("VERSION.md", viewer), "utf8"),
+		new RegExp(`pdfjs-dist@${version.replaceAll(".", "\\.")}\``),
+		"Run `npm run vendor:pdfjs-viewer` after upgrading pdfjs-dist",
+	);
+	const html = await readFile(new URL("web/viewer.html", viewer), "utf8");
+	assert.ok(html.includes('<script src="kitapkurdu.js"></script>'));
+	assert.ok(html.includes('href="kitapkurdu.css"'));
+	assert.ok(html.includes("style-src 'self' 'unsafe-inline';"));
+	for (const file of ["kitapkurdu.js", "kitapkurdu.css"]) {
+		assert.ok(
+			(await readFile(new URL(`web/${file}`, viewer))).equals(
+				await readFile(
+					new URL(`../scripts/pdfjs-viewer/${file}`, import.meta.url),
+				),
+			),
+			`${file} differs; run npm run vendor:pdfjs-viewer`,
+		);
+	}
+	// PDF scripting stays off.
+	assert.match(
+		await readFile(new URL("web/kitapkurdu.js", viewer), "utf8"),
+		/enableScripting: false/,
+	);
+});

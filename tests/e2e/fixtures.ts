@@ -36,7 +36,10 @@ export async function guardLocalNetwork(context: BrowserContext) {
 	});
 }
 
-export const test = base.extend({
+export const test = base.extend<{ expectedBrowserErrors: RegExp[] }>({
+	// Console errors a test deliberately provokes (e.g. a broken file). Each
+	// pattern must match at least once; anything else still fails the test.
+	expectedBrowserErrors: [[], { option: true }],
 	// Give each isolated browser context its own synthetic client IP for auth rate limiting.
 	// The hosted Cloudflare edge overwrites this header; tests only use the local emulator.
 	extraHTTPHeaders: async ({ baseURL }, use) => {
@@ -46,7 +49,7 @@ export const test = base.extend({
 			"cf-connecting-ip": `10.${octets[0]}.${octets[1]}.${octets[2]}`,
 		});
 	},
-	page: async ({ page }, use) => {
+	page: async ({ page, expectedBrowserErrors }, use) => {
 		const errors: string[] = [];
 		page.on("pageerror", (error) => errors.push(error.message));
 		page.on("console", (message) => {
@@ -55,7 +58,19 @@ export const test = base.extend({
 		// Block accidental third-party requests, including links to the hosted app.
 		await guardLocalNetwork(page.context());
 		await use(page);
-		expect(errors, "Unexpected browser JavaScript errors").toEqual([]);
+		for (const pattern of expectedBrowserErrors) {
+			expect(
+				errors.some((error) => pattern.test(error)),
+				`Expected browser error ${pattern}`,
+			).toBe(true);
+		}
+		expect(
+			errors.filter(
+				(error) =>
+					!expectedBrowserErrors.some((pattern) => pattern.test(error)),
+			),
+			"Unexpected browser JavaScript errors",
+		).toEqual([]);
 	},
 });
 

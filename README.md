@@ -157,10 +157,14 @@ last pages.
 
 ### Reading
 
-PDFs are rendered with pdf.js. Scanned books store pages as JBIG2/CCITT/JPX
-images, which pdf.js decodes with WebAssembly files it loads at runtime; these,
-plus its CMaps and standard fonts, are vendored in `public/vendor/pdfjs`. After
-upgrading `pdfjs-dist`, run `npm run vendor:pdfjs` (a test fails until you do).
+PDFs open in Mozilla's pdf.js viewer (the reader Firefox uses: zoom and
+pinch-zoom, scrolling, thumbnails, outline, search), vendored in
+`public/vendor/pdfjs-viewer` with Turkish texts, PDF scripting off and no
+editing tools (`scripts/pdfjs-viewer/`). Scanned books store pages as
+JBIG2/CCITT/JPX images, which pdf.js decodes with WebAssembly files; these,
+plus CMaps and standard fonts, are in `public/vendor/pdfjs` and shared with the
+upload page. After upgrading `pdfjs-dist`, run `npm run vendor:pdfjs` and
+`npm run vendor:pdfjs-viewer` (a test fails until you do).
 Book downloads carry an ETag and a one-week browser cache, so reopening a book
 does not download it again.
 

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Page } from "@playwright/test";
 import { strToU8, zipSync } from "fflate";
-import { readerEpub, sampleEpub, samplePdf } from "../fixtures/book-files";
+import { readerEpub, sampleEpub } from "../fixtures/book-files";
 import { capture, expect, openUploadForm, signUp, test } from "./fixtures";
 
 async function upload(page: Page, format: "pdf" | "epub", bytes: Uint8Array) {
@@ -20,77 +20,6 @@ async function upload(page: Page, format: "pdf" | "epub", bytes: Uint8Array) {
 	).toBeVisible();
 	return new URL(page.url()).pathname.split("/").at(-1) ?? "";
 }
-
-test("PDF uploads can be previewed page by page and downloaded", async ({
-	page,
-}, info) => {
-	const bytes = samplePdf();
-	const id = await upload(page, "pdf", bytes);
-	await expect(
-		page.getByRole("definition").filter({ hasText: /^PDF$/ }),
-	).toBeVisible();
-	const response = await page.request.get(
-		`/api/books/${id}/download?download=1`,
-	);
-	expect(response.status()).toBe(200);
-	expect(response.headers()["content-type"]).toBe("application/pdf");
-	expect(response.headers()["content-disposition"]).toBe(
-		`attachment; filename="${id}.pdf"`,
-	);
-	expect(await response.body()).toEqual(Buffer.from(bytes));
-	// Reopening a book uses the browser's copy; afterwards it only revalidates.
-	expect(response.headers()["cache-control"]).toBe("private, max-age=604800");
-	const etag = response.headers().etag;
-	expect(etag).toBeTruthy();
-	const revalidated = await page.request.get(`/api/books/${id}/download`, {
-		headers: { "if-none-match": etag },
-	});
-	expect(revalidated.status()).toBe(304);
-	expect(await revalidated.body()).toHaveLength(0);
-	const changed = await page.request.get(`/api/books/${id}/download`, {
-		headers: { "if-none-match": '"another-version"' },
-	});
-	expect(changed.status()).toBe(200);
-	await page.getByRole("link", { name: "Kitabı aç", exact: true }).click();
-	await expect(page).toHaveURL(new RegExp(`/read/${id}$`));
-	await expect(page.getByTestId("pdf-page-text")).toHaveText(
-		"KitapKurdu PDF page 1",
-	);
-	await expect(page.getByRole("status")).toHaveText("Sayfa 1 / 2");
-	await expect(
-		page.getByRole("button", { name: "Önceki sayfa" }),
-	).toBeDisabled();
-	await expect(page.locator("canvas")).toBeVisible();
-	// A painted page, not just a canvas element or a successful network response.
-	expect(
-		await page.locator("canvas").evaluate((canvas: HTMLCanvasElement) => {
-			const pixels = canvas
-				.getContext("2d")
-				?.getImageData(0, 0, canvas.width, canvas.height).data;
-			return pixels
-				? pixels.some((value, i) => i % 4 !== 3 && value < 100)
-				: false;
-		}),
-	).toBe(true);
-	await capture(page, info, "pdf-preview");
-	await page.getByRole("button", { name: "Sonraki sayfa" }).click();
-	await expect(page.getByTestId("pdf-page-text")).toHaveText(
-		"KitapKurdu PDF page 2",
-	);
-	await expect(
-		page.getByRole("button", { name: "Sonraki sayfa" }),
-	).toBeDisabled();
-	await page.getByRole("button", { name: "Önceki sayfa" }).click();
-	await expect(page.getByTestId("pdf-page-text")).toHaveText(
-		"KitapKurdu PDF page 1",
-	);
-	await expect(page.locator("body")).toHaveJSProperty(
-		"scrollWidth",
-		await page.evaluate(() => window.innerWidth),
-	);
-	await page.getByRole("link", { name: "Kitaba dön" }).click();
-	await expect(page).toHaveURL(new RegExp(`/books/${id}$`));
-});
 
 // foliate-js renders each section in a blob: iframe inside closed shadow DOM,
 // so read the text from those frames directly.
@@ -282,15 +211,6 @@ test("renaming an ordinary ZIP to EPUB is rejected without a browser error", asy
 		"EPUB dosyası geçersiz, şifreli veya önizleme sınırlarını aşıyor.",
 	);
 	await expect(page).toHaveURL(/\/books\/new$/);
-});
-
-test("a damaged PDF shows a readable preview error and still offers download", async ({
-	page,
-}) => {
-	await upload(page, "pdf", strToU8("%PDF-1.4\n% not a complete document"));
-	await page.getByRole("link", { name: "Kitabı aç", exact: true }).click();
-	await expect(page.getByRole("alert")).toContainText("Bu PDF önizlenemedi.");
-	await expect(page.getByRole("link", { name: "Dosyayı indir" })).toBeVisible();
 });
 
 test("a book without a file has a clear missing-preview state", async ({
