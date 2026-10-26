@@ -34,7 +34,7 @@ export default defineConfig({
 		{ name: "mobile-chromium", use: { ...devices["Pixel 7"] } },
 		{
 			name: "mobile-webkit",
-			testMatch: "**/reader-webkit.spec.ts",
+			testMatch: ["**/reader-webkit.spec.ts", "**/pdf-reader.spec.ts"],
 			use: { ...devices["iPhone 13"] },
 		},
 	],

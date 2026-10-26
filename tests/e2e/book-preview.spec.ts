@@ -38,6 +38,19 @@ test("PDF uploads can be previewed page by page and downloaded", async ({
 		`attachment; filename="${id}.pdf"`,
 	);
 	expect(await response.body()).toEqual(Buffer.from(bytes));
+	// Reopening a book uses the browser's copy; afterwards it only revalidates.
+	expect(response.headers()["cache-control"]).toBe("private, max-age=604800");
+	const etag = response.headers().etag;
+	expect(etag).toBeTruthy();
+	const revalidated = await page.request.get(`/api/books/${id}/download`, {
+		headers: { "if-none-match": etag },
+	});
+	expect(revalidated.status()).toBe(304);
+	expect(await revalidated.body()).toHaveLength(0);
+	const changed = await page.request.get(`/api/books/${id}/download`, {
+		headers: { "if-none-match": '"another-version"' },
+	});
+	expect(changed.status()).toBe(200);
 	await page.getByRole("link", { name: "Kitabı aç", exact: true }).click();
 	await expect(page).toHaveURL(new RegExp(`/read/${id}$`));
 	await expect(page.getByTestId("pdf-page-text")).toHaveText(
@@ -290,6 +303,61 @@ test("a book without a file has a clear missing-preview state", async ({
 	await expect(
 		page.getByRole("link", { name: "Kitap detayına dön" }),
 	).toHaveAttribute("href", "/books/seed-1984");
+});
+
+test("a slow EPUB download shows how much has arrived", async ({ page }) => {
+	const id = await upload(page, "epub", readerEpub());
+	// Hold the download so the reader stays in its download phase.
+	let release = () => {};
+	const held = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	await page.route(`**/api/books/${id}/download`, async (route) => {
+		await held;
+		await route.continue();
+	});
+	await page.getByRole("link", { name: "Kitabı aç", exact: true }).click();
+	const loading = page.getByTestId("reader-loading");
+	await expect(loading).toHaveText("Kitap açılıyor…");
+	await expect
+		.poll(() => page.frames().some((f) => f.url().includes("/reader/frame")))
+		.toBe(true);
+	const frame = page.frames().find((f) => f.url().includes("/reader/frame"));
+	// The frame reports bytes as they arrive; the page shows them in MB.
+	await frame?.evaluate(() =>
+		parent.postMessage(
+			{
+				type: "progress",
+				phase: "download",
+				loaded: 1.5 * 1024 ** 2,
+				total: 3 * 1024 ** 2,
+			},
+			location.origin,
+		),
+	);
+	await expect(loading).toHaveText("Kitap indiriliyor… 1,5 / 3,0 MB");
+
+	const finished = page.evaluate(
+		() =>
+			new Promise<boolean>((resolve) =>
+				addEventListener("message", (event) => {
+					const data = event.data ?? {};
+					if (
+						data.type === "progress" &&
+						data.phase === "download" &&
+						data.total > 0 &&
+						data.loaded === data.total
+					)
+						resolve(true);
+				}),
+			),
+	);
+	release();
+	expect(await finished).toBe(true);
+	await expect(loading).toHaveCount(0, { timeout: 20_000 });
+	await expect(
+		page.getByRole("button", { name: "Sonraki sayfa" }),
+	).toBeVisible();
 });
 
 test("a swipe turns the page and pages slide unless motion is reduced", async ({

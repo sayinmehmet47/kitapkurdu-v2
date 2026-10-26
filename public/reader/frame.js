@@ -49,9 +49,34 @@ const post = (message) => parent.postMessage(message, location.origin);
 
 // Report only the stage and error category, never the uploaded book contents.
 let phase = "download";
-function progress(next) {
+let lastProgress;
+function progress(next, detail = {}) {
 	phase = next;
-	post({ type: "progress", phase });
+	lastProgress = { type: "progress", phase, ...detail };
+	post(lastProgress);
+}
+
+// Reads the download in chunks and reports how much has arrived, so a slow
+// connection shows progress instead of looking stuck.
+async function downloadBlob(response) {
+	const total = Number(response.headers.get("content-length")) || 0;
+	if (!response.body) return response.blob();
+	const reader = response.body.getReader();
+	const chunks = [];
+	let loaded = 0;
+	let reported = 0;
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		chunks.push(value);
+		loaded += value.byteLength;
+		if (Date.now() - reported > 250) {
+			reported = Date.now();
+			progress("download", { loaded, total });
+		}
+	}
+	progress("download", { loaded, total });
+	return new Blob(chunks);
 }
 
 function storage(action, value) {
@@ -150,7 +175,7 @@ async function open() {
 		error.name = `HTTP_${response.status}`;
 		throw error;
 	}
-	const blob = await response.blob();
+	const blob = await downloadBlob(response);
 	if (blob.size === 0) throw new Error("Empty EPUB download");
 	const file = new File([blob], "book.epub", { type: "application/epub+zip" });
 	progress("parse");
@@ -206,6 +231,7 @@ window.addEventListener("message", (event) => {
 	const message = event.data ?? {};
 	if (message.type === "hello") {
 		post({ type: "frame-loaded" });
+		if (lastProgress && !readyMessage) post(lastProgress);
 		if (readyMessage) post(readyMessage);
 		if (lastRelocate) post(lastRelocate);
 		// A fast failure may happen before the parent has hydrated and subscribed.

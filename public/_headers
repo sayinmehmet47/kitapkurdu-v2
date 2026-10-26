@@ -10,3 +10,8 @@
 
 /vendor/foliate-js/*
   X-Content-Type-Options: nosniff
+
+# pdf.js decoders, CMaps and fonts (npm run vendor:pdfjs).
+/vendor/pdfjs/*
+  Cache-Control: public, max-age=86400
+  X-Content-Type-Options: nosniff

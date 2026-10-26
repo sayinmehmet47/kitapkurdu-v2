@@ -27,7 +27,7 @@ type ReaderPhase = "download" | "parse" | "render" | "position";
 
 type FrameMessage =
 	| { type: "frame-loaded" }
-	| { type: "progress"; phase: ReaderPhase }
+	| { type: "progress"; phase: ReaderPhase; loaded?: number; total?: number }
 	| { type: "ready"; toc: TocItem[] }
 	| { type: "relocate"; fraction: number; label: string }
 	| { type: "toggle-chrome" }
@@ -40,6 +40,18 @@ const PHASE_ERRORS: Record<ReaderPhase, string> = {
 	render: "EPUB sayfaları görüntülenemedi.",
 	position: "EPUB okuma konumu açılamadı.",
 };
+
+const megabytes = (bytes: number) =>
+	(bytes / 1024 ** 2).toLocaleString("tr-TR", {
+		minimumFractionDigits: 1,
+		maximumFractionDigits: 1,
+	});
+
+function downloadLabel({ loaded, total }: { loaded: number; total: number }) {
+	return total > 0
+		? `${megabytes(loaded)} / ${megabytes(total)} MB`
+		: `${megabytes(loaded)} MB`;
+}
 
 const iconButton =
 	"inline-flex size-10 shrink-0 items-center justify-center rounded-md no-underline transition-colors hover:bg-black/5 focus-visible:outline-2 focus-visible:outline-current dark:hover:bg-white/10";
@@ -58,6 +70,11 @@ export function EpubReader({ id, title }: { id: string; title: string }) {
 		"loading",
 	);
 	const [readError, setReadError] = useState("Bu kitap açılamadı.");
+	// Bytes received so far; every update also restarts the stall timer.
+	const [download, setDownload] = useState<{
+		loaded: number;
+		total: number;
+	} | null>(null);
 	const [toc, setToc] = useState<TocItem[]>([]);
 	const [fraction, setFraction] = useState(0);
 	const [label, setLabel] = useState("");
@@ -95,6 +112,14 @@ export function EpubReader({ id, title }: { id: string; title: string }) {
 				send({ type: "settings", settings });
 			else if (message?.type === "progress") {
 				setReadError(PHASE_ERRORS[message.phase] ?? "Bu kitap açılamadı.");
+				setDownload(
+					message.phase === "download" && Number.isFinite(message.loaded)
+						? {
+								loaded: Number(message.loaded),
+								total: Number(message.total) || 0,
+							}
+						: null,
+				);
 			} else if (message?.type === "ready") {
 				setToc(message.toc);
 				setStatus("ready");
@@ -117,7 +142,9 @@ export function EpubReader({ id, title }: { id: string; title: string }) {
 	}, [send, settings]);
 
 	// A failed script, network stall, or unresolved book initialization must not
-	// leave an opaque loading overlay on-screen indefinitely.
+	// leave an opaque loading overlay on-screen indefinitely. A slow download
+	// that is still arriving is not a stall: each progress update restarts it.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: restarts on progress.
 	useEffect(() => {
 		if (status !== "loading") return;
 		const timeout = setTimeout(() => {
@@ -127,10 +154,11 @@ export function EpubReader({ id, title }: { id: string; title: string }) {
 			setStatus("error");
 		}, 45_000);
 		return () => clearTimeout(timeout);
-	}, [status]);
+	}, [status, download]);
 
 	function retry(resetPosition: boolean) {
 		setReadError("Bu kitap açılamadı.");
+		setDownload(null);
 		setStatus("loading");
 		setStartFresh(resetPosition);
 		setAttempt((current) => current + 1);
@@ -219,7 +247,11 @@ export function EpubReader({ id, title }: { id: string; title: string }) {
 						style={{ background: theme.background }}
 					>
 						{status === "loading" ? (
-							<output className="opacity-70">Kitap açılıyor…</output>
+							<output className="opacity-70" data-testid="reader-loading">
+								{download && download.loaded > 0
+									? `Kitap indiriliyor… ${downloadLabel(download)}`
+									: "Kitap açılıyor…"}
+							</output>
 						) : (
 							<div role="alert" className="max-w-sm">
 								<p className="font-serif text-xl">{readError}</p>

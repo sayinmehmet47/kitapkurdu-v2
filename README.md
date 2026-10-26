@@ -155,6 +155,15 @@ admins are exempt, but the storage ceiling applies to everyone. Choosing a file
 reads its details in the browser, including an ISBN printed on the first or
 last pages.
 
+### Reading
+
+PDFs are rendered with pdf.js. Scanned books store pages as JBIG2/CCITT/JPX
+images, which pdf.js decodes with WebAssembly files it loads at runtime; these,
+plus its CMaps and standard fonts, are vendored in `public/vendor/pdfjs`. After
+upgrading `pdfjs-dist`, run `npm run vendor:pdfjs` (a test fails until you do).
+Book downloads carry an ETag and a one-week browser cache, so reopening a book
+does not download it again.
+
 ### Google Books lookup on upload
 
 The upload form's "Bilgileri getir" button and the server-side save fill empty
