@@ -30,6 +30,36 @@ export function samplePdf(
 	return strToU8(result);
 }
 
+// A one-page "scanned" PDF: a 1-bit CCITT G4 image, like scanned books.
+// pdf.js decodes CCITT and JBIG2 only with its WebAssembly decoders.
+const CCITT_G4_96x128 =
+	"JqB4NX///yH3T///////5IBl///////////////+Q6v////////////////////////////////////////////////////////////////8f///////////////j///////8f//+ACACA==";
+
+export function scannedPdf() {
+	const image = atob(CCITT_G4_96x128); // Binary string, one char per byte.
+	const content = "q 300 0 0 400 50 80 cm /Im1 Do Q";
+	const objects = [
+		"<< /Type /Catalog /Pages 2 0 R >>",
+		"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+		"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 560] /Resources << /XObject << /Im1 5 0 R >> >> /Contents 4 0 R >>",
+		`<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+		`<< /Type /XObject /Subtype /Image /Width 96 /Height 128 /BitsPerComponent 1 /ColorSpace /DeviceGray /Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns 96 /Rows 128 >> /Length ${image.length} >>\nstream\n${image}\nendstream`,
+	];
+	let result = "%PDF-1.7\n";
+	const offsets = [0];
+	objects.forEach((object, index) => {
+		offsets.push(result.length);
+		result += `${index + 1} 0 obj\n${object}\nendobj\n`;
+	});
+	const xref = result.length;
+	result += `xref\n0 ${offsets.length}\n0000000000 65535 f \n`;
+	for (const offset of offsets.slice(1)) {
+		result += `${String(offset).padStart(10, "0")} 00000 n \n`;
+	}
+	result += `trailer\n<< /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+	return strToU8(result, true);
+}
+
 function pdfStream(text: string) {
 	const content = `BT /F1 18 Tf 36 480 Td (${text}) Tj ET`;
 	return `<< /Length ${content.length} >>\nstream\n${content}\nendstream`;

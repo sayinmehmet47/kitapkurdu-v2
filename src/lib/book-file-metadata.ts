@@ -66,17 +66,8 @@ const FIRST_PAGES = 8;
 const LAST_PAGES = 3;
 
 async function pdfMetadata(bytes: Uint8Array): Promise<FileMetadata> {
-	const [lib, worker] = await Promise.all([
-		import("pdfjs-dist"),
-		import("pdfjs-dist/build/pdf.worker.min.mjs?url"),
-	]);
-	lib.GlobalWorkerOptions.workerSrc = worker.default;
-	const task = lib.getDocument({
-		data: bytes.slice(),
-		enableXfa: false,
-		useWasm: false,
-		useSystemFonts: true,
-	});
+	const { loadPdfjs, pdfOptions } = await import("#/lib/pdfjs");
+	const task = (await loadPdfjs()).getDocument(pdfOptions(bytes.slice()));
 	try {
 		const document = await task.promise;
 		const { info } = (await document.getMetadata()) as {

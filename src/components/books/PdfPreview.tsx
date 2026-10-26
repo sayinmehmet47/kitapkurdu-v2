@@ -5,6 +5,7 @@ import type {
 } from "pdfjs-dist";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "#/components/ui/button";
+import { loadPdfjs, pdfOptions } from "#/lib/pdfjs";
 
 export default function PdfPreview({ bytes }: { bytes: Uint8Array }) {
 	const canvas = useRef<HTMLCanvasElement>(null);
@@ -19,17 +20,10 @@ export default function PdfPreview({ bytes }: { bytes: Uint8Array }) {
 		let task: PDFDocumentLoadingTask | undefined;
 		async function load() {
 			try {
-				const [lib, worker] = await Promise.all([
-					import("pdfjs-dist"),
-					import("pdfjs-dist/build/pdf.worker.min.mjs?url"),
-				]);
+				const lib = await loadPdfjs();
 				if (!active) return;
-				lib.GlobalWorkerOptions.workerSrc = worker.default;
 				task = lib.getDocument({
-					data: bytes.slice(),
-					enableXfa: false,
-					useWasm: false,
-					useSystemFonts: true,
+					...pdfOptions(bytes.slice()),
 					maxImageSize: 16_000_000,
 					canvasMaxAreaInBytes: 32_000_000,
 				});
