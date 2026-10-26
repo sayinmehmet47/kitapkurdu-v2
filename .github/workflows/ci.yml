@@ -34,6 +34,8 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
       - name: Install Chromium and browser system dependencies
+        # Normally under 2 minutes; fail fast instead of hanging on a slow mirror.
+        timeout-minutes: 10
         run: npm exec -- playwright install --with-deps chromium webkit
       - name: Verify source, types, database behavior, build, and real browsers
         run: npm run verify
