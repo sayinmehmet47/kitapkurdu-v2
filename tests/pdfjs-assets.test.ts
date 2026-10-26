@@ -45,6 +45,11 @@ test("the vendored pdf.js viewer matches pdfjs-dist and carries our settings", a
 		new RegExp(`pdfjs-dist@${version.replaceAll(".", "\\.")}\``),
 		"Run `npm run vendor:pdfjs-viewer` after upgrading pdfjs-dist",
 	);
+	// The modern build only runs in the very latest browsers (older iPhones fail).
+	assert.match(
+		await readFile(new URL("VERSION.md", viewer), "utf8"),
+		/-legacy-dist\.zip/,
+	);
 	const html = await readFile(new URL("web/viewer.html", viewer), "utf8");
 	assert.ok(html.includes('<script src="kitapkurdu.js"></script>'));
 	assert.ok(html.includes('href="kitapkurdu.css"'));

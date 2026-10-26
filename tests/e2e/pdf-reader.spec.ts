@@ -138,6 +138,30 @@ test("scanned PDF pages (CCITT/JBIG2 images) are painted", async ({
 	await capture(page, info, "pdf-scanned");
 });
 
+test("the reader works in browsers without the newest JavaScript APIs", async ({
+	page,
+}) => {
+	// Older Safari versions (iPhone) lack these; the test browsers have them.
+	await page.addInitScript(() => {
+		const map = Map.prototype as unknown as Record<string, unknown>;
+		const weakMap = WeakMap.prototype as unknown as Record<string, unknown>;
+		for (const name of ["getOrInsert", "getOrInsertComputed"]) {
+			delete map[name];
+			delete weakMap[name];
+		}
+		delete (RegExp as unknown as Record<string, unknown>).escape;
+		delete (Math as unknown as Record<string, unknown>).sumPrecise;
+		delete (Promise as unknown as Record<string, unknown>).try;
+	});
+	await upload(page, samplePdf());
+	await page.getByRole("link", { name: "Kitabı aç", exact: true }).click();
+	const viewer = viewerOf(page);
+	await expect(viewer.locator("#numPages")).toContainText("2");
+	await expect(
+		viewer.locator('.page[data-page-number="1"] .textLayer'),
+	).toContainText("KitapKurdu PDF page 1");
+});
+
 test.describe("a damaged PDF", () => {
 	// pdf.js reports the broken file on the console; that error is expected
 	// here and must occur (see expectedBrowserErrors in fixtures.ts).

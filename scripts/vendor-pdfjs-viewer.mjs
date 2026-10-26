@@ -16,7 +16,9 @@ const target = new URL("public/vendor/pdfjs-viewer/", root);
 const { version } = JSON.parse(
 	await readFile(new URL("node_modules/pdfjs-dist/package.json", root), "utf8"),
 );
-const url = `https://github.com/mozilla/pdf.js/releases/download/v${version}/pdfjs-${version}-dist.zip`;
+// The legacy build: the modern one targets only the latest browsers and fails
+// on older iPhones (e.g. Map.prototype.getOrInsertComputed is missing).
+const url = `https://github.com/mozilla/pdf.js/releases/download/v${version}/pdfjs-${version}-legacy-dist.zip`;
 const response = await fetch(url);
 if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
 const zip = new Uint8Array(await response.arrayBuffer());
@@ -85,7 +87,9 @@ await writeFile(
 
 - Source: ${url}
 - SHA-256 of the release zip: \`${sha256}\`
-- Mozilla pdf.js \`${version}\` (\`pdfjs-dist@${version}\`), Apache-2.0, see \`LICENSE\`.
+- Mozilla pdf.js \`${version}\` legacy build (\`pdfjs-dist@${version}\`), Apache-2.0,
+  see \`LICENSE\`. Legacy because the modern build needs the very latest
+  browsers; older iPhones could not run it.
 - Installed by \`npm run vendor:pdfjs-viewer\`. Files are unchanged except
   \`web/viewer.html\`: it also loads \`kitapkurdu.js\` (settings) and
   \`kitapkurdu.css\` (both from \`scripts/pdfjs-viewer/\`), and its meta CSP
