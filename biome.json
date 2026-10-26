@@ -12,6 +12,7 @@
 			"public/reader/**",
 			"tests/**/*.ts",
 			"scripts/**/*.mjs",
+			"scripts/pdfjs-viewer/**",
 			"playwright.config.ts",
 			"playwright-mcp.config.json",
 			"package.json",

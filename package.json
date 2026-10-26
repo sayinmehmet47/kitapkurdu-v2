@@ -13,6 +13,7 @@
 		"dev:e2e": "node scripts/e2e-server.mjs",
 		"generate-routes": "tsr generate",
 		"vendor:pdfjs": "node scripts/vendor-pdfjs.mjs",
+		"vendor:pdfjs-viewer": "node scripts/vendor-pdfjs-viewer.mjs",
 		"build": "vite build",
 		"build:test": "CLOUDFLARE_ENV=test vite build",
 		"preview": "vite preview",

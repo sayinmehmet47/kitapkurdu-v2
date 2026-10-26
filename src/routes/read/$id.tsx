@@ -3,7 +3,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { ArrowLeft, Download } from "lucide-react";
 import { z } from "zod";
-import { BookPreview } from "#/components/books/BookPreview";
 import { EpubReader } from "#/components/reader/EpubReader";
 import { buttonVariants } from "#/components/ui/button";
 import { createDb } from "#/db";
@@ -54,7 +53,9 @@ function ReadPage() {
 		return <EpubReader key={item.id} id={item.id} title={item.name} />;
 	}
 
-	// PDF: pdf.js pages inside the same full-screen frame.
+	// PDF: Mozilla's pdf.js viewer (zoom, pinch-zoom, scrolling, thumbnails,
+	// outline, search), vendored in public/vendor/pdfjs-viewer, same origin.
+	const file = `/api/books/${encodeURIComponent(id)}/download`;
 	return (
 		<main className="fixed inset-0 flex flex-col bg-background">
 			<header className="flex h-14 shrink-0 items-center gap-1 border-b border-border px-2">
@@ -77,11 +78,13 @@ function ReadPage() {
 					<Download className="size-5" />
 				</a>
 			</header>
-			<div className="min-h-0 flex-1 overflow-y-auto px-4 py-6">
-				<div className="mx-auto max-w-3xl">
-					<BookPreview key={item.id} id={item.id} />
-				</div>
-			</div>
+			<iframe
+				key={item.id}
+				title={`${item.name} — PDF okuyucu`}
+				src={`/vendor/pdfjs-viewer/web/viewer?file=${encodeURIComponent(file)}`}
+				className="min-h-0 w-full flex-1 border-0"
+				allow="fullscreen"
+			/>
 		</main>
 	);
 }

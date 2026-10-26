@@ -1,0 +1,37 @@
+/* KitapKurdu adjustments to the vendored pdf.js viewer (not part of pdf.js).
+   Opening local files and bookmarking a viewer URL make no sense here. */
+#openFile,
+#secondaryOpenFile,
+#viewBookmark,
+#viewBookmarkSeparator,
+#editorModeButtons,
+#editorModeSeparator {
+	display: none;
+}
+
+#kitapkurdu-error {
+	position: fixed;
+	inset: 50% auto auto 50%;
+	transform: translate(-50%, -50%);
+	z-index: 100000;
+	width: min(24rem, calc(100% - 2rem));
+	padding: 1.25rem;
+	border-radius: 8px;
+	background: var(--toolbar-bg-color, #fff);
+	color: var(--main-color, #000);
+	box-shadow: 0 4px 24px rgb(0 0 0 / 0.25);
+	font:
+		15px / 1.5 system-ui,
+		sans-serif;
+	text-align: center;
+}
+
+#kitapkurdu-error p {
+	margin: 0;
+}
+
+#kitapkurdu-error p + p {
+	margin-top: 0.5rem;
+	font-size: 13px;
+	opacity: 0.75;
+}
