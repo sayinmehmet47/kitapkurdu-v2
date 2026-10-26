@@ -11,14 +11,16 @@
 /vendor/foliate-js/*
   X-Content-Type-Options: nosniff
 
-# pdf.js decoders, CMaps and fonts (npm run vendor:pdfjs).
+# pdf.js decoders, CMaps and fonts (npm run vendor:pdfjs). Their paths are
+# not versioned, so browsers revalidate (ETag, 304) instead of keeping a copy
+# that a later deploy could not replace.
 /vendor/pdfjs/*
-  Cache-Control: public, max-age=86400
+  Cache-Control: no-cache
   X-Content-Type-Options: nosniff
 
 # Mozilla's pdf.js viewer (npm run vendor:pdfjs-viewer). PDFs never run
 # scripts (enableScripting is off); only this site's files may load.
 /vendor/pdfjs-viewer/*
   Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self' blob: data:; connect-src 'self' blob: data:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'
-  Cache-Control: public, max-age=86400
+  Cache-Control: no-cache
   X-Content-Type-Options: nosniff

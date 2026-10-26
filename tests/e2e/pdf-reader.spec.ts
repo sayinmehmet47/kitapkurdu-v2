@@ -126,6 +126,28 @@ test("PDF uploads open in the pdf.js reader and can be downloaded", async ({
 	await expect(page).toHaveURL(new RegExp(`/books/${id}$`));
 });
 
+test("viewer files are revalidated, so a deploy reaches phones at once", async ({
+	page,
+}) => {
+	// The vendored paths carry no version; a long cache once kept a broken
+	// viewer on a phone after the fix was deployed.
+	for (const path of [
+		"/vendor/pdfjs-viewer/web/viewer.mjs",
+		"/vendor/pdfjs-viewer/build/pdf.mjs",
+		"/vendor/pdfjs/wasm/jbig2.wasm",
+	]) {
+		const response = await page.request.get(path);
+		expect(response.status(), path).toBe(200);
+		expect(response.headers()["cache-control"], path).toBe("no-cache");
+		const etag = response.headers().etag;
+		expect(etag, path).toBeTruthy();
+		const again = await page.request.get(path, {
+			headers: { "if-none-match": etag },
+		});
+		expect(again.status(), path).toBe(304);
+	}
+});
+
 test("scanned PDF pages (CCITT/JBIG2 images) are painted", async ({
 	page,
 }, info) => {
