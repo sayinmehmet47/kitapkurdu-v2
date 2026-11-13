@@ -118,7 +118,8 @@ config.d1_databases[0].migrations_dir = join(root, "drizzle");
 await writeFile(configPath, JSON.stringify(config), { mode: 0o600 });
 await writeFile(
 	join(statePath, ".dev.vars"),
-	`BETTER_AUTH_SECRET=${randomBytes(48).toString("base64url")}\n`,
+	// A synthetic Google OAuth client: tests stop at the redirect to Google.
+	`BETTER_AUTH_SECRET=${randomBytes(48).toString("base64url")}\nGOOGLE_CLIENT_SECRET=${randomBytes(24).toString("base64url")}\n`,
 	{ mode: 0o600 },
 );
 const env = {

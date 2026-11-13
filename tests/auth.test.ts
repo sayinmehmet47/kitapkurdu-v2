@@ -277,4 +277,48 @@ test("authentication and private data persist in local D1", {
 			assert.equal((await failedLogin()).status, 429);
 		},
 	);
+
+	await t.test(
+		"Google sign-in is offered only when its client is configured",
+		async () => {
+			// Another client address: the previous step used up 127.0.0.1's limit.
+			const social = (instance: ReturnType<typeof createAuth>) =>
+				instance.handler(
+					new Request(`${baseURL}/api/auth/sign-in/social`, {
+						method: "POST",
+						headers: {
+							origin: baseURL,
+							"content-type": "application/json",
+							"cf-connecting-ip": "127.0.0.9",
+						},
+						body: JSON.stringify({ provider: "google", callbackURL: "/shelf" }),
+					}),
+				);
+			const off = await social(createAuth(db, { secret, baseURL }));
+			assert.notEqual(off.status, 200, "no Google client, no Google sign-in");
+
+			const on = await social(
+				createAuth(db, {
+					secret,
+					baseURL,
+					google: {
+						clientId: "test-client.apps.googleusercontent.com",
+						clientSecret: "synthetic-test-secret",
+					},
+				}),
+			);
+			assert.equal(on.status, 200);
+			const target = new URL(((await on.json()) as { url: string }).url);
+			assert.equal(target.origin, "https://accounts.google.com");
+			assert.equal(
+				target.searchParams.get("redirect_uri"),
+				`${baseURL}/api/auth/callback/google`,
+			);
+			assert.equal(
+				target.searchParams.get("client_id"),
+				"test-client.apps.googleusercontent.com",
+			);
+			assert.equal(target.searchParams.get("prompt"), "select_account");
+		},
+	);
 });
