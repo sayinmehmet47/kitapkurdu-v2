@@ -12,6 +12,7 @@ import {
 import { z } from "zod";
 import type { Database } from "#/db";
 import { book } from "#/db/schema";
+import { sameBook } from "#/lib/book-import";
 
 export const bookPageInput = z.object({
 	page: z.number().int().min(1).default(1),
@@ -135,4 +136,24 @@ export function markBookDuplicate(
 		.where(eq(book.id, id))
 		.returning()
 		.get();
+}
+
+/**
+ * A listed book that is the same as the given one (same ISBN, or same title
+ * by the same author). The catalog is small, so this compares in memory.
+ */
+export async function findExistingBook(
+	db: Database,
+	item: { name: string; author?: string; isbn?: string },
+) {
+	const rows = await db
+		.select({
+			id: book.id,
+			name: book.name,
+			author: book.author,
+			isbn: book.isbn,
+		})
+		.from(book)
+		.where(isNull(book.duplicateOfId));
+	return rows.find((row) => sameBook(item, row))?.id ?? null;
 }

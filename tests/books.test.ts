@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { Miniflare } from "miniflare";
 import { createDb } from "../src/db/index";
 import { book } from "../src/db/schema";
+import { findExistingBook } from "../src/lib/books";
 
 test("book schema round-trips in isolated D1", {
 	timeout: 60_000,
@@ -92,5 +93,30 @@ test("book schema round-trips in isolated D1", {
 		(await db.select().from(book)).length,
 		1,
 		"only the inserted book should exist",
+	);
+
+	// Bulk import flags books that are already listed.
+	assert.equal(
+		await findExistingBook(db, { name: "SEFİLLER", author: "victor hugo" }),
+		inserted.id,
+	);
+	assert.equal(
+		await findExistingBook(db, { name: "Başka Ad", isbn: "978-975-07-1273-9" }),
+		inserted.id,
+		"the same ISBN is the same book",
+	);
+	assert.equal(
+		await findExistingBook(db, { name: "Sefiller", author: "Başka Yazar" }),
+		null,
+		"the same title by another author is another book",
+	);
+	await db
+		.insert(book)
+		.values({ name: "Gizli Kopya", duplicateOfId: inserted.id })
+		.run();
+	assert.equal(
+		await findExistingBook(db, { name: "Gizli Kopya" }),
+		null,
+		"hidden duplicates are not offered as matches",
 	);
 });

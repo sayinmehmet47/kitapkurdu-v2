@@ -1,61 +1,24 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeaders } from "@tanstack/react-start/server";
 import { useEffect, useRef, useState } from "react";
-import { z } from "zod";
 import { BookCover } from "#/components/books/BookCover";
 import { Button } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { Textarea } from "#/components/ui/textarea";
-import { getAuth } from "#/lib/auth";
 import { BOOK_FILE_ACCEPT, MAX_BOOK_FILE_BYTES } from "#/lib/book-file-format";
-import { lookupBookMetadata } from "#/lib/book-metadata";
-import { metadataConfig } from "#/lib/metadata-config";
-import {
-	DETAILS_HEADER,
-	encodeDetails,
-	FORMAT_HEADER,
-	sniffBookFormat,
-	UPLOAD_PATH,
-	type UploadResponse,
-} from "#/lib/upload-request";
-
-const getUploadContext = createServerFn({ method: "GET" }).handler(async () => {
-	const session = await getAuth().api.getSession({
-		headers: getRequestHeaders(),
-	});
-	return { isSignedIn: Boolean(session) };
-});
-
-const SOURCE_NAMES = { google: "Google Books", openlibrary: "Open Library" };
-
-const lookupMetadata = createServerFn({ method: "POST" })
-	.validator(
-		z.object({
-			isbn: z.string().trim().max(32).optional(),
-			name: z.string().trim().max(200).optional(),
-			author: z.string().trim().max(200).optional(),
-		}),
-	)
-	.handler(async ({ data }) => {
-		// Signed-in only, so anonymous traffic cannot spend the shared quota.
-		const session = await getAuth().api.getSession({
-			headers: getRequestHeaders(),
-		});
-		if (!session) throw new Error("Sign in before looking up books.");
-		return lookupBookMetadata(data, metadataConfig());
-	});
+import { SOURCE_NAMES } from "#/lib/book-import";
+import { getUploaderContext, lookupMetadata } from "#/lib/book-server-fns";
+import { sniffBookFormat, uploadBook } from "#/lib/upload-request";
 
 const MAX_FILE_MB = MAX_BOOK_FILE_BYTES / 1024 ** 2;
 
 export const Route = createFileRoute("/books/new")({
-	loader: async () => getUploadContext(),
+	loader: async () => getUploaderContext(),
 	component: UploadPage,
 });
 
 function UploadPage() {
-	const { isSignedIn } = Route.useLoaderData();
+	const { isSignedIn, isAdmin } = Route.useLoaderData();
 	const navigate = useNavigate();
 	const [name, setName] = useState("");
 	const [author, setAuthor] = useState("");
@@ -306,26 +269,17 @@ function UploadPage() {
 				setError("Yalnızca PDF veya EPUB dosyaları yüklenebilir.");
 				return;
 			}
-			// The file is the raw body: the Worker streams it to storage.
-			const response = await fetch(UPLOAD_PATH, {
-				method: "PUT",
-				headers: {
-					[FORMAT_HEADER]: format,
-					[DETAILS_HEADER]: encodeDetails({
-						name,
-						author,
-						publisher,
-						isbn,
-						description,
-						category,
-						language,
-						coverThumbnail: cover ?? undefined,
-						coverRemoved,
-					}),
-				},
-				body: file,
+			const result = await uploadBook(file, format, {
+				name,
+				author,
+				publisher,
+				isbn,
+				description,
+				category,
+				language,
+				coverThumbnail: cover ?? undefined,
+				coverRemoved,
 			});
-			const result = (await response.json()) as UploadResponse;
 			if (!result.ok) {
 				setError(result.error);
 				return;
@@ -351,6 +305,14 @@ function UploadPage() {
 				<h1 className="mt-2 font-serif text-3xl leading-tight font-semibold">
 					Kitap Ekle
 				</h1>
+				{isAdmin ? (
+					<p className="mt-2 text-sm text-muted-foreground">
+						Çok sayıda kitap mı?{" "}
+						<Link to="/books/import" className="text-primary underline">
+							Toplu ekle
+						</Link>
+					</p>
+				) : null}
 
 				<form
 					onSubmit={handleSubmit}
