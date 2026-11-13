@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AboutRouteImport } from './routes/about'
+import { Route as GizlilikRouteImport } from './routes/gizlilik'
 import { Route as ShelfRouteImport } from './routes/shelf'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as BooksIndexRouteImport } from './routes/books/index'
@@ -31,6 +32,11 @@ const IndexRoute = IndexRouteImport.update({
 const AboutRoute = AboutRouteImport.update({
   id: '/about',
   path: '/about',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GizlilikRoute = GizlilikRouteImport.update({
+  id: '/gizlilik',
+  path: '/gizlilik',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ShelfRoute = ShelfRouteImport.update({
@@ -92,6 +98,7 @@ const ApiBooksIdDownloadRoute = ApiBooksIdDownloadRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/gizlilik': typeof GizlilikRoute
   '/shelf': typeof ShelfRoute
   '/sign-in': typeof SignInRoute
   '/books/$id': typeof BooksIdRoute
@@ -107,6 +114,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/gizlilik': typeof GizlilikRoute
   '/shelf': typeof ShelfRoute
   '/sign-in': typeof SignInRoute
   '/books/$id': typeof BooksIdRoute
@@ -123,6 +131,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/gizlilik': typeof GizlilikRoute
   '/shelf': typeof ShelfRoute
   '/sign-in': typeof SignInRoute
   '/books/$id': typeof BooksIdRoute
@@ -140,6 +149,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/about'
+    | '/gizlilik'
     | '/shelf'
     | '/sign-in'
     | '/books/$id'
@@ -155,6 +165,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/about'
+    | '/gizlilik'
     | '/shelf'
     | '/sign-in'
     | '/books/$id'
@@ -170,6 +181,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/about'
+    | '/gizlilik'
     | '/shelf'
     | '/sign-in'
     | '/books/$id'
@@ -186,6 +198,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
+  GizlilikRoute: typeof GizlilikRoute
   ShelfRoute: typeof ShelfRoute
   SignInRoute: typeof SignInRoute
   BooksIdRoute: typeof BooksIdRoute
@@ -213,6 +226,13 @@ declare module '@tanstack/react-router' {
       path: '/about'
       fullPath: '/about'
       preLoaderRoute: typeof AboutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gizlilik': {
+      id: '/gizlilik'
+      path: '/gizlilik'
+      fullPath: '/gizlilik'
+      preLoaderRoute: typeof GizlilikRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/shelf': {
@@ -298,6 +318,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
+  GizlilikRoute: GizlilikRoute,
   ShelfRoute: ShelfRoute,
   SignInRoute: SignInRoute,
   BooksIdRoute: BooksIdRoute,

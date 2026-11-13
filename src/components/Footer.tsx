@@ -35,6 +35,12 @@ export default function Footer() {
 					>
 						Hakkında
 					</Link>
+					<Link
+						to="/gizlilik"
+						className="text-foreground no-underline hover:text-primary"
+					>
+						Gizlilik
+					</Link>
 				</nav>
 			</div>
 			<div className="page-wrap border-t border-border py-5 text-sm text-muted-foreground">

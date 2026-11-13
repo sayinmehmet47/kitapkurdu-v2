@@ -187,7 +187,9 @@ test("the reader works in browsers without the newest JavaScript APIs", async ({
 test.describe("a damaged PDF", () => {
 	// pdf.js reports the broken file on the console; that error is expected
 	// here and must occur (see expectedBrowserErrors in fixtures.ts).
-	test.use({ expectedBrowserErrors: [/Invalid PDF|InvalidPDFException/] });
+	test.use({
+		expectedBrowserErrors: { patterns: [/Invalid PDF|InvalidPDFException/] },
+	});
 
 	test("shows the reader's error and still offers download", async ({
 		page,

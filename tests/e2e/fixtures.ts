@@ -36,10 +36,14 @@ export async function guardLocalNetwork(context: BrowserContext) {
 	});
 }
 
-export const test = base.extend<{ expectedBrowserErrors: RegExp[] }>({
+// An object, not a bare array: Playwright reads a two-item array option as
+// [value, fixtureOptions].
+type ExpectedErrors = { patterns: RegExp[] };
+
+export const test = base.extend<{ expectedBrowserErrors: ExpectedErrors }>({
 	// Console errors a test deliberately provokes (e.g. a broken file). Each
 	// pattern must match at least once; anything else still fails the test.
-	expectedBrowserErrors: [[], { option: true }],
+	expectedBrowserErrors: [{ patterns: [] }, { option: true }],
 	// Give each isolated browser context its own synthetic client IP for auth rate limiting.
 	// The hosted Cloudflare edge overwrites this header; tests only use the local emulator.
 	extraHTTPHeaders: async ({ baseURL }, use) => {
@@ -49,7 +53,7 @@ export const test = base.extend<{ expectedBrowserErrors: RegExp[] }>({
 			"cf-connecting-ip": `10.${octets[0]}.${octets[1]}.${octets[2]}`,
 		});
 	},
-	page: async ({ page, expectedBrowserErrors }, use) => {
+	page: async ({ page, expectedBrowserErrors: { patterns } }, use) => {
 		const errors: string[] = [];
 		page.on("pageerror", (error) => errors.push(error.message));
 		page.on("console", (message) => {
@@ -58,7 +62,7 @@ export const test = base.extend<{ expectedBrowserErrors: RegExp[] }>({
 		// Block accidental third-party requests, including links to the hosted app.
 		await guardLocalNetwork(page.context());
 		await use(page);
-		for (const pattern of expectedBrowserErrors) {
+		for (const pattern of patterns) {
 			expect(
 				errors.some((error) => pattern.test(error)),
 				`Expected browser error ${pattern}`,
@@ -66,8 +70,7 @@ export const test = base.extend<{ expectedBrowserErrors: RegExp[] }>({
 		}
 		expect(
 			errors.filter(
-				(error) =>
-					!expectedBrowserErrors.some((pattern) => pattern.test(error)),
+				(error) => !patterns.some((pattern) => pattern.test(error)),
 			),
 			"Unexpected browser JavaScript errors",
 		).toEqual([]);

@@ -1,4 +1,5 @@
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { APIError } from "better-auth/api";
 import { betterAuth } from "better-auth/minimal";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import type { Database } from "#/db";
@@ -35,6 +36,20 @@ export function createAuth(
 			? { google: { ...options.google, prompt: "select_account" } }
 			: undefined,
 		user: {
+			// "Hesabımı sil": with the password, or a session from the last day
+			// (Google accounts). Sessions, accounts, ratings and messages go with
+			// the user; uploaded books stay, without an uploader.
+			deleteUser: {
+				enabled: true,
+				beforeDelete: async (user) => {
+					// Keep the site from being left without its admin by accident.
+					if ((user as { role?: string }).role === "admin")
+						throw new APIError("BAD_REQUEST", {
+							message: "Admin accounts cannot be deleted here.",
+							code: "ADMIN_CANNOT_BE_DELETED",
+						});
+				},
+			},
 			additionalFields: {
 				role: {
 					type: ["user", "admin"],

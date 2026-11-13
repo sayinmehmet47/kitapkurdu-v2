@@ -187,6 +187,13 @@ npx wrangler secret put GOOGLE_CLIENT_ID --env test --config wrangler.jsonc
 npx wrangler secret put GOOGLE_CLIENT_SECRET --env test --config wrangler.jsonc
 ```
 
+To let every Google account sign in (not only listed test users), publish the
+app in Google Auth Platform with the home page `https://kitapkurdu.kigx.xyz`
+and the privacy page `https://kitapkurdu.kigx.xyz/gizlilik`. The site stays
+anonymous: readers delete their own account on the sign-in page ("Hesabımı
+sil"), so no contact address is published; admin accounts cannot be deleted
+there.
+
 A Google account joins an existing account only if that account's email is
 verified (Better Auth's default). Password accounts are not email-verified, so
 their owners keep signing in with their password. Tests stop at the redirect to

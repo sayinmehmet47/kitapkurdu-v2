@@ -7,7 +7,14 @@ import { test } from "node:test";
 import { eq } from "drizzle-orm";
 import { Miniflare } from "miniflare";
 import { createDb } from "../src/db/index";
-import { account, book, rateLimit, session } from "../src/db/schema";
+import {
+	account,
+	book,
+	rateLimit,
+	rating,
+	session,
+	user,
+} from "../src/db/schema";
 import { createAuth } from "../src/lib/auth-config";
 import { getMyRating, upsertRating } from "../src/lib/ratings";
 
@@ -319,6 +326,86 @@ test("authentication and private data persist in local D1", {
 				"test-client.apps.googleusercontent.com",
 			);
 			assert.equal(target.searchParams.get("prompt"), "select_account");
+		},
+	);
+
+	await t.test(
+		"readers delete their own account; the admin account is kept",
+		async () => {
+			// Own client address and instance: earlier steps used up 127.0.0.1.
+			const auth = createAuth(db, { secret, baseURL });
+			const call = (path: string, body: unknown, cookie?: string) =>
+				auth.handler(
+					new Request(`${baseURL}/api/auth/${path}`, {
+						method: "POST",
+						headers: {
+							origin: baseURL,
+							"content-type": "application/json",
+							"cf-connecting-ip": "127.0.0.10",
+							...(cookie ? { cookie } : {}),
+						},
+						body: JSON.stringify(body),
+					}),
+				);
+			const signUp = async (email: string) => {
+				const response = await call("sign-up/email", {
+					email,
+					password,
+					name: "Silinecek",
+				});
+				assert.equal(response.status, 200);
+				const { user: created } = (await response.json()) as {
+					user: { id: string };
+				};
+				return { id: created.id, cookie: getCookie(response) };
+			};
+
+			const reader = await signUp("delete-me@example.test");
+			const listed = await db
+				.insert(book)
+				.values({ name: "Silme Denemesi", uploaderId: reader.id })
+				.returning()
+				.get();
+			await upsertRating(db, reader.id, { bookId: listed.id, rating: 4 });
+
+			const wrong = await call(
+				"delete-user",
+				{ password: "not-the-password" },
+				reader.cookie,
+			);
+			assert.equal(wrong.status, 400);
+			const deleted = await call("delete-user", { password }, reader.cookie);
+			assert.equal(deleted.status, 200);
+			assert.equal(
+				(await db.select().from(user).where(eq(user.id, reader.id))).length,
+				0,
+			);
+			assert.equal(
+				(await db.select().from(rating).where(eq(rating.userId, reader.id)))
+					.length,
+				0,
+				"ratings go with the account",
+			);
+			const kept = await db
+				.select()
+				.from(book)
+				.where(eq(book.id, listed.id))
+				.get();
+			assert.ok(kept, "uploaded books stay in the library");
+			assert.equal(kept.uploaderId, null);
+
+			const admin = await signUp("admin-keep@example.test");
+			await db.update(user).set({ role: "admin" }).where(eq(user.id, admin.id));
+			const refused = await call("delete-user", { password }, admin.cookie);
+			assert.equal(refused.status, 400);
+			assert.equal(
+				((await refused.json()) as { code?: string }).code,
+				"ADMIN_CANNOT_BE_DELETED",
+			);
+			assert.equal(
+				(await db.select().from(user).where(eq(user.id, admin.id))).length,
+				1,
+			);
 		},
 	);
 });

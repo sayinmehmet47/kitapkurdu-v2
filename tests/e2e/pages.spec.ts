@@ -40,6 +40,20 @@ test("home page offers search, recent books, and fits the viewport", async ({
 		page.getByRole("heading", { level: 1, name: "KitapKurdu hakkında" }),
 	).toBeVisible();
 	await capture(page, info, "about");
+
+	// Linked from Google's sign-in consent screen.
+	await page
+		.getByRole("contentinfo")
+		.getByRole("link", { name: "Gizlilik" })
+		.click();
+	await expect(page).toHaveURL(/\/gizlilik$/);
+	await expect(
+		page.getByRole("heading", { level: 1, name: "Gizlilik" }),
+	).toBeVisible();
+	await expect(
+		page.getByRole("heading", { name: "Hesabını silmek" }),
+	).toBeVisible();
+	await capture(page, info, "privacy");
 });
 
 test("site shell is branded, Turkish, themeable, and searchable", async ({
@@ -141,6 +155,7 @@ test("main pages fit a 360px-wide screen without horizontal scrolling", async ({
 		"/books/seed-suc-ve-ceza",
 		"/shelf",
 		"/about",
+		"/gizlilik",
 		"/sign-in",
 	]) {
 		await page.goto(path);
