@@ -72,6 +72,109 @@ function errorMessage(error: { code?: string; status?: number }) {
 	);
 }
 
+const DELETE_ERRORS: Record<string, string> = {
+	INVALID_PASSWORD: "Şifre hatalı.",
+	SESSION_EXPIRED:
+		"Güvenlik için önce çıkış yapıp yeniden giriş yap, sonra hesabını sil.",
+	ADMIN_CANNOT_BE_DELETED: "Yönetici hesabı buradan silinemez.",
+};
+
+// Lets readers remove their account themselves (no contact address needed).
+function DeleteAccount() {
+	const [open, setOpen] = useState(false);
+	const [password, setPassword] = useState("");
+	const [error, setError] = useState("");
+	const [busy, setBusy] = useState(false);
+
+	const remove = async () => {
+		setError("");
+		setBusy(true);
+		try {
+			const result = await authClient.deleteUser(password ? { password } : {});
+			if (result.error) {
+				setError(
+					(result.error.code && DELETE_ERRORS[result.error.code]) ||
+						"Hesap silinemedi. Lütfen tekrar deneyin.",
+				);
+				return;
+			}
+			window.location.assign("/");
+		} catch {
+			setError("Hesap silinemedi. Lütfen tekrar deneyin.");
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	if (!open)
+		return (
+			<p className="mt-12 border-t border-border pt-6 text-sm text-muted-foreground">
+				<button
+					type="button"
+					onClick={() => setOpen(true)}
+					className="underline underline-offset-[3px] hover:text-destructive"
+				>
+					Hesabımı sil
+				</button>
+			</p>
+		);
+
+	return (
+		<section
+			aria-labelledby="delete-account"
+			className="mt-12 grid gap-4 rounded-md border border-destructive/40 p-4"
+		>
+			<h2 id="delete-account" className="text-lg font-semibold">
+				Hesabını sil
+			</h2>
+			<p className="text-sm text-muted-foreground">
+				Hesabın, puanların, yorumların ve Raf Alanı mesajların kalıcı olarak
+				silinir. Eklediğin kitaplar kitaplıkta kalır. Bu işlem geri alınamaz.
+			</p>
+			<div className="grid gap-2">
+				<Label htmlFor="delete-password">
+					Şifren (Google ile giriş yaptıysan boş bırak)
+				</Label>
+				<Input
+					id="delete-password"
+					type="password"
+					autoComplete="current-password"
+					value={password}
+					onChange={(event) => setPassword(event.target.value)}
+					className="h-10 bg-card"
+				/>
+			</div>
+			{error ? (
+				<p role="alert" className="text-sm text-destructive">
+					{error}
+				</p>
+			) : null}
+			<div className="flex flex-wrap gap-3">
+				<Button
+					type="button"
+					variant="destructive"
+					disabled={busy}
+					onClick={remove}
+				>
+					{busy ? "Siliniyor…" : "Hesabımı kalıcı olarak sil"}
+				</Button>
+				<Button
+					type="button"
+					variant="outline"
+					disabled={busy}
+					onClick={() => {
+						setOpen(false);
+						setPassword("");
+						setError("");
+					}}
+				>
+					Vazgeç
+				</Button>
+			</div>
+		</section>
+	);
+}
+
 function SignInPage() {
 	const { redirect, error: googleError } = Route.useSearch();
 	const { google } = Route.useLoaderData();
@@ -112,6 +215,7 @@ function SignInPage() {
 							Raf Alanı'na git
 						</Link>
 					</div>
+					<DeleteAccount />
 				</div>
 			</main>
 		);
