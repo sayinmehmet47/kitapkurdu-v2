@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import { BookCover } from "#/components/books/BookCover";
 import { CategoryList } from "#/components/books/CategoryList";
@@ -173,6 +173,10 @@ function RatingForm({
 	);
 	const [review, setReview] = useState(initial?.review ?? "");
 	const [error, setError] = useState<string | null>(null);
+	// Disabled until React holds the values: a choice made in the
+	// server-rendered form before hydration would be silently reset.
+	const [hydrated, setHydrated] = useState(false);
+	useEffect(() => setHydrated(true), []);
 
 	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
@@ -191,44 +195,46 @@ function RatingForm({
 	};
 
 	return (
-		<form onSubmit={handleSubmit} className="grid gap-4">
-			<h3 className="text-xl font-semibold">
-				{initial ? "Değerlendirmeni güncelle" : "Bu kitabı değerlendir"}
-			</h3>
-			<div className="grid gap-2">
-				<Label htmlFor="rating">Puanın</Label>
-				<select
-					id="rating"
-					value={rating}
-					onChange={(event) => setRating(event.target.value)}
-					className="h-10 w-full max-w-48 rounded-md border border-input bg-card px-3 text-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-				>
-					<option value="">Puan seç</option>
-					{[1, 2, 3, 4, 5].map((n) => (
-						<option key={n} value={n}>
-							{n} yıldız
-						</option>
-					))}
-				</select>
-			</div>
-			<div className="grid gap-2">
-				<Label htmlFor="review">Yorum (isteğe bağlı)</Label>
-				<Textarea
-					id="review"
-					value={review}
-					onChange={(event) => setReview(event.target.value)}
-					rows={4}
-					className="bg-card"
-				/>
-			</div>
-			{error ? (
-				<p role="alert" className="text-sm text-destructive">
-					{error}
-				</p>
-			) : null}
-			<Button type="submit" className="justify-self-start">
-				{initial ? "Güncelle" : "Gönder"}
-			</Button>
+		<form onSubmit={handleSubmit}>
+			<fieldset disabled={!hydrated} className="grid min-w-0 gap-4">
+				<h3 className="text-xl font-semibold">
+					{initial ? "Değerlendirmeni güncelle" : "Bu kitabı değerlendir"}
+				</h3>
+				<div className="grid gap-2">
+					<Label htmlFor="rating">Puanın</Label>
+					<select
+						id="rating"
+						value={rating}
+						onChange={(event) => setRating(event.target.value)}
+						className="h-10 w-full max-w-48 rounded-md border border-input bg-card px-3 text-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+					>
+						<option value="">Puan seç</option>
+						{[1, 2, 3, 4, 5].map((n) => (
+							<option key={n} value={n}>
+								{n} yıldız
+							</option>
+						))}
+					</select>
+				</div>
+				<div className="grid gap-2">
+					<Label htmlFor="review">Yorum (isteğe bağlı)</Label>
+					<Textarea
+						id="review"
+						value={review}
+						onChange={(event) => setReview(event.target.value)}
+						rows={4}
+						className="bg-card"
+					/>
+				</div>
+				{error ? (
+					<p role="alert" className="text-sm text-destructive">
+						{error}
+					</p>
+				) : null}
+				<Button type="submit" className="justify-self-start">
+					{initial ? "Güncelle" : "Gönder"}
+				</Button>
+			</fieldset>
 		</form>
 	);
 }

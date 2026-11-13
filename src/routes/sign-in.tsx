@@ -1,19 +1,57 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { Button, buttonVariants } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
+import { googleCredentials } from "#/lib/auth";
 import { authClient } from "#/lib/auth-client";
 import { safeRedirect } from "#/lib/redirect";
 
-type Search = { redirect?: string };
+// Better Auth sends Google sign-in failures back here as ?error=<code>.
+type Search = { redirect?: string; error?: string };
+
+const getSignInOptions = createServerFn({ method: "GET" }).handler(
+	async () => ({ google: Boolean(googleCredentials()) }),
+);
 
 export const Route = createFileRoute("/sign-in")({
 	validateSearch: (search: Record<string, unknown>): Search => ({
 		redirect: safeRedirect(search.redirect),
+		error:
+			typeof search.error === "string" ? search.error.slice(0, 64) : undefined,
 	}),
+	loader: () => getSignInOptions(),
 	component: SignInPage,
 });
+
+const GOOGLE_ERRORS: Record<string, string> = {
+	account_not_linked:
+		"Bu e-posta adresiyle şifreyle açılmış bir hesap var. E-posta adresin ve şifrenle giriş yap.",
+};
+
+function GoogleLogo() {
+	return (
+		<svg viewBox="0 0 48 48" aria-hidden="true" className="size-5">
+			<path
+				fill="#FFC107"
+				d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34.1 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"
+			/>
+			<path
+				fill="#FF3D00"
+				d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34.1 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"
+			/>
+			<path
+				fill="#4CAF50"
+				d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2c-2 1.5-4.5 2.4-7.2 2.4-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"
+			/>
+			<path
+				fill="#1976D2"
+				d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"
+			/>
+		</svg>
+	);
+}
 
 const ERRORS: Record<string, string> = {
 	INVALID_EMAIL_OR_PASSWORD: "E-posta ya da şifre hatalı.",
@@ -35,14 +73,20 @@ function errorMessage(error: { code?: string; status?: number }) {
 }
 
 function SignInPage() {
-	const { redirect } = Route.useSearch();
+	const { redirect, error: googleError } = Route.useSearch();
+	const { google } = Route.useLoaderData();
 	const navigate = useNavigate();
 	const { data: session, isPending } = authClient.useSession();
 	const [isSignUp, setIsSignUp] = useState(false);
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [name, setName] = useState("");
-	const [error, setError] = useState("");
+	const [error, setError] = useState(
+		googleError
+			? (GOOGLE_ERRORS[googleError] ??
+					"Google ile giriş yapılamadı. Lütfen tekrar deneyin.")
+			: "",
+	);
 	const [loading, setLoading] = useState(false);
 
 	if (isPending) {
@@ -72,6 +116,30 @@ function SignInPage() {
 			</main>
 		);
 	}
+
+	// Leaves the site for Google; Better Auth brings the browser back to
+	// `redirect` (or this page, which then says "Hoş geldin").
+	const signInWithGoogle = async () => {
+		setError("");
+		setLoading(true);
+		const back = redirect
+			? `/sign-in?redirect=${encodeURIComponent(redirect)}`
+			: "/sign-in";
+		try {
+			const result = await authClient.signIn.social({
+				provider: "google",
+				callbackURL: redirect ?? "/sign-in",
+				errorCallbackURL: back,
+			});
+			if (result.error) {
+				setError(errorMessage(result.error));
+				setLoading(false);
+			}
+		} catch {
+			setError("Bir şeyler ters gitti. Lütfen tekrar deneyin.");
+			setLoading(false);
+		}
+	};
 
 	const handleSubmit = async (event: React.FormEvent) => {
 		event.preventDefault();
@@ -103,10 +171,36 @@ function SignInPage() {
 				<p className="mt-3 text-muted-foreground">
 					{isSignUp
 						? "Kitapları değerlendirmek ve Raf Alanı'na not bırakmak için bir hesap aç."
-						: "Tekrar hoş geldin. E-posta adresin ve şifrenle giriş yap."}
+						: google
+							? "Tekrar hoş geldin. Google hesabınla ya da e-posta adresin ve şifrenle giriş yap."
+							: "Tekrar hoş geldin. E-posta adresin ve şifrenle giriş yap."}
 				</p>
 
-				<form onSubmit={handleSubmit} className="mt-8 grid gap-5">
+				{google ? (
+					<>
+						<Button
+							type="button"
+							variant="outline"
+							size="lg"
+							className="mt-8 w-full gap-3 bg-card"
+							disabled={loading}
+							onClick={signInWithGoogle}
+						>
+							<GoogleLogo />
+							Google ile devam et
+						</Button>
+						<div className="mt-6 flex items-center gap-3 text-xs text-muted-foreground">
+							<span className="h-px flex-1 bg-border" />
+							veya e-posta ile
+							<span className="h-px flex-1 bg-border" />
+						</div>
+					</>
+				) : null}
+
+				<form
+					onSubmit={handleSubmit}
+					className={google ? "mt-6 grid gap-5" : "mt-8 grid gap-5"}
+				>
 					{isSignUp ? (
 						<div className="grid gap-2">
 							<Label htmlFor="name">Ad</Label>

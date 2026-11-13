@@ -4,9 +4,11 @@ import { tanstackStartCookies } from "better-auth/tanstack-start";
 import type { Database } from "#/db";
 import * as schema from "#/db/schema";
 
+export type GoogleCredentials = { clientId: string; clientSecret: string };
+
 export function createAuth(
 	db: Database,
-	options: { secret: string; baseURL: string },
+	options: { secret: string; baseURL: string; google?: GoogleCredentials },
 ) {
 	if (!options.secret || options.secret.length < 32) {
 		throw new Error(
@@ -25,6 +27,13 @@ export function createAuth(
 			transaction: false,
 		}),
 		emailAndPassword: { enabled: true },
+		// "Google ile devam et", only when the Google OAuth client is configured.
+		// A Google account joins an existing account only if that account's
+		// email is verified (Better Auth's default), so nobody can pre-register
+		// someone else's Gmail address with a password and wait for them.
+		socialProviders: options.google
+			? { google: { ...options.google, prompt: "select_account" } }
+			: undefined,
 		user: {
 			additionalFields: {
 				role: {

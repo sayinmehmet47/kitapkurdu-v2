@@ -174,6 +174,24 @@ upload page. After upgrading `pdfjs-dist`, run `npm run vendor:pdfjs` and
 Book downloads carry an ETag and a one-week browser cache, so reopening a book
 does not download it again.
 
+### Google sign-in
+
+"Google ile devam et" appears on the sign-in page once the Worker has a Google
+OAuth client; without one, only email and password are offered. In Google
+Cloud Console create an OAuth client (Web application) with the redirect URI
+`https://kitapkurdu.kigx.xyz/api/auth/callback/google`, then store it as
+secrets in your own terminal so the values are never logged:
+
+```bash
+npx wrangler secret put GOOGLE_CLIENT_ID --env test --config wrangler.jsonc
+npx wrangler secret put GOOGLE_CLIENT_SECRET --env test --config wrangler.jsonc
+```
+
+A Google account joins an existing account only if that account's email is
+verified (Better Auth's default). Password accounts are not email-verified, so
+their owners keep signing in with their password. Tests stop at the redirect to
+Google and never contact a real account.
+
 ### Google Books lookup on upload
 
 The upload form's "Bilgileri getir" button and the server-side save fill empty
