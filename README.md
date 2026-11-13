@@ -155,6 +155,12 @@ admins are exempt, but the storage ceiling applies to everyone. Choosing a file
 reads its details in the browser, including an ISBN printed on the first or
 last pages.
 
+Admins can add many books at once on `/books/import`: each file is read in the
+browser (title, author, ISBN printed inside, cover), completed online, and
+checked against the library (same ISBN, or same title by the same author) and
+the rest of the list. Rows can be edited or left out, then are uploaded one by
+one through the same route.
+
 ### Reading
 
 PDFs open in Mozilla's pdf.js viewer (the reader Firefox uses: zoom and

@@ -40,3 +40,32 @@ export async function sniffBookFormat(
 	if (head[0] === 0x50 && head[1] === 0x4b) return "epub";
 	return null;
 }
+
+/**
+ * Uploads a book: the file is the raw request body (streamed to storage by the
+ * Worker) and the details travel in a header. Reports progress from 0 to 1.
+ */
+export function uploadBook(
+	file: Blob,
+	format: BookFileFormat,
+	details: unknown,
+	onProgress?: (share: number) => void,
+) {
+	return new Promise<UploadResponse>((resolve, reject) => {
+		const request = new XMLHttpRequest();
+		request.open("PUT", UPLOAD_PATH);
+		request.setRequestHeader(FORMAT_HEADER, format);
+		request.setRequestHeader(DETAILS_HEADER, encodeDetails(details));
+		request.responseType = "json";
+		request.upload.onprogress = (event) => {
+			if (event.lengthComputable) onProgress?.(event.loaded / event.total);
+		};
+		request.onload = () => {
+			const body = request.response as UploadResponse | null;
+			if (body && typeof body.ok === "boolean") resolve(body);
+			else reject(new Error(`HTTP ${request.status}`));
+		};
+		request.onerror = () => reject(new Error("Network error"));
+		request.send(file);
+	});
+}

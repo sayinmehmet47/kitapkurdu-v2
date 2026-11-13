@@ -108,3 +108,17 @@ export async function signUp(page: Page) {
 	await expect(page.getByRole("heading", { name: "Hoş geldin" })).toBeVisible();
 	return credentials;
 }
+
+// The isolated E2E server creates this admin with a fresh synthetic password.
+export async function signInAsAdmin(page: Page) {
+	const password = process.env.E2E_ADMIN_PASSWORD;
+	if (!password) throw new Error("The isolated E2E admin password is missing.");
+	await page.goto("/sign-in");
+	await page.getByLabel("E-posta", { exact: true }).fill("admin@example.test");
+	await page.getByLabel("Şifre", { exact: true }).fill(password);
+	await page
+		.getByRole("main")
+		.getByRole("button", { name: "Giriş yap", exact: true })
+		.click();
+	await expect(page.getByRole("heading", { name: "Hoş geldin" })).toBeVisible();
+}

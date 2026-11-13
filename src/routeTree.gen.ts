@@ -15,6 +15,7 @@ import { Route as ShelfRouteImport } from './routes/shelf'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as BooksIndexRouteImport } from './routes/books/index'
 import { Route as BooksIdRouteImport } from './routes/books/$id'
+import { Route as BooksImportRouteImport } from './routes/books/import'
 import { Route as BooksNewRouteImport } from './routes/books/new'
 import { Route as ReadIdRouteImport } from './routes/read/$id'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
@@ -50,6 +51,11 @@ const BooksIndexRoute = BooksIndexRouteImport.update({
 const BooksIdRoute = BooksIdRouteImport.update({
   id: '/books/$id',
   path: '/books/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BooksImportRoute = BooksImportRouteImport.update({
+  id: '/books/import',
+  path: '/books/import',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BooksNewRoute = BooksNewRouteImport.update({
@@ -89,6 +95,7 @@ export interface FileRoutesByFullPath {
   '/shelf': typeof ShelfRoute
   '/sign-in': typeof SignInRoute
   '/books/$id': typeof BooksIdRoute
+  '/books/import': typeof BooksImportRoute
   '/books/new': typeof BooksNewRoute
   '/read/$id': typeof ReadIdRoute
   '/books/': typeof BooksIndexRoute
@@ -103,6 +110,7 @@ export interface FileRoutesByTo {
   '/shelf': typeof ShelfRoute
   '/sign-in': typeof SignInRoute
   '/books/$id': typeof BooksIdRoute
+  '/books/import': typeof BooksImportRoute
   '/books/new': typeof BooksNewRoute
   '/read/$id': typeof ReadIdRoute
   '/books': typeof BooksIndexRoute
@@ -118,6 +126,7 @@ export interface FileRoutesById {
   '/shelf': typeof ShelfRoute
   '/sign-in': typeof SignInRoute
   '/books/$id': typeof BooksIdRoute
+  '/books/import': typeof BooksImportRoute
   '/books/new': typeof BooksNewRoute
   '/read/$id': typeof ReadIdRoute
   '/books/': typeof BooksIndexRoute
@@ -134,6 +143,7 @@ export interface FileRouteTypes {
     | '/shelf'
     | '/sign-in'
     | '/books/$id'
+    | '/books/import'
     | '/books/new'
     | '/read/$id'
     | '/books/'
@@ -148,6 +158,7 @@ export interface FileRouteTypes {
     | '/shelf'
     | '/sign-in'
     | '/books/$id'
+    | '/books/import'
     | '/books/new'
     | '/read/$id'
     | '/books'
@@ -162,6 +173,7 @@ export interface FileRouteTypes {
     | '/shelf'
     | '/sign-in'
     | '/books/$id'
+    | '/books/import'
     | '/books/new'
     | '/read/$id'
     | '/books/'
@@ -177,6 +189,7 @@ export interface RootRouteChildren {
   ShelfRoute: typeof ShelfRoute
   SignInRoute: typeof SignInRoute
   BooksIdRoute: typeof BooksIdRoute
+  BooksImportRoute: typeof BooksImportRoute
   BooksNewRoute: typeof BooksNewRoute
   ReadIdRoute: typeof ReadIdRoute
   BooksIndexRoute: typeof BooksIndexRoute
@@ -230,6 +243,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BooksIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/books/import': {
+      id: '/books/import'
+      path: '/books/import'
+      fullPath: '/books/import'
+      preLoaderRoute: typeof BooksImportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/books/new': {
       id: '/books/new'
       path: '/books/new'
@@ -281,6 +301,7 @@ const rootRouteChildren: RootRouteChildren = {
   ShelfRoute: ShelfRoute,
   SignInRoute: SignInRoute,
   BooksIdRoute: BooksIdRoute,
+  BooksImportRoute: BooksImportRoute,
   BooksNewRoute: BooksNewRoute,
   ReadIdRoute: ReadIdRoute,
   BooksIndexRoute: BooksIndexRoute,
